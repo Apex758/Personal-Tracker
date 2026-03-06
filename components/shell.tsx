@@ -1,144 +1,161 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { modules } from '@/lib/modules';
+import {
+  LayoutDashboard,
+  Wallet,
+  Leaf,
+  Target,
+  Briefcase,
+  Plane,
+  Star,
+  Menu,
+  X,
+  type LucideIcon,
+} from 'lucide-react';
+
+const MODULE_ICONS: Record<string, LucideIcon> = {
+  finance:   Wallet,
+  lifestyle: Leaf,
+  skills:    Target,
+  work:      Briefcase,
+  travel:    Plane,
+  wishlist:  Star,
+};
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [desktopCollapsed, setDesktopCollapsed] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    const handleResize = () => {
-      const mobile = window.innerWidth <= 820;
-      setIsMobile(mobile);
-
-      if (!mobile) {
-        setMobileOpen(false);
-      }
-    };
-
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    const onResize = () => setIsMobile(window.innerWidth <= 820);
+    onResize();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [pathname]);
+  useEffect(() => { setMobileOpen(false); }, [pathname]);
+
+  function handleSidebarEnter() {
+    if (isMobile) return;
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    setExpanded(true);
+  }
+
+  function handleSidebarLeave() {
+    if (isMobile) return;
+    hoverTimer.current = setTimeout(() => setExpanded(false), 160);
+  }
+
+  function handleMainClick() {
+    if (!isMobile) setExpanded(false);
+    if (isMobile && mobileOpen) setMobileOpen(false);
+  }
+
+  const isExpanded = isMobile ? mobileOpen : expanded;
 
   return (
-    <div
-      className={`app-shell ${
-        desktopCollapsed ? 'desktop-collapsed' : ''
-      }`}
-    >
+    <>
       {isMobile && mobileOpen && (
-        <button
-          className="sidebar-backdrop"
-          aria-label="Close menu"
-          onClick={() => setMobileOpen(false)}
-        />
+        <div className="sidebar-backdrop" onClick={() => setMobileOpen(false)} />
       )}
 
       <aside
-        className={`sidebar ${
-          isMobile ? (mobileOpen ? 'open' : '') : desktopCollapsed ? 'collapsed' : ''
-        }`}
+        className={`sidebar${isExpanded ? ' expanded' : ''}`}
+        onMouseEnter={handleSidebarEnter}
+        onMouseLeave={handleSidebarLeave}
       >
+        {/* Brand */}
         <div className="sidebar-top">
           <div className="sidebar-brand">
-            <p className="eyebrow">Personal HQ</p>
-            {!desktopCollapsed || isMobile ? <h1>Delon’s tracker</h1> : null}
-            {!desktopCollapsed || isMobile ? (
-              <p className="muted sidebar-muted">
-                One place for money, habits, skills, work, travel, and lifestyle purchases.
-              </p>
-            ) : null}
+            <div className="brand-icon">D</div>
+            <div className="brand-text">
+              <div className="brand-name">Personal HQ</div>
+              <div className="brand-sub">Delon's tracker</div>
+            </div>
           </div>
-
-          {!isMobile && (
-            <button
-              className="menu-button"
-              onClick={() => setDesktopCollapsed((prev) => !prev)}
-            >
-              {desktopCollapsed ? '→' : '←'}
-            </button>
-          )}
-
           {isMobile && (
-            <button
-              className="menu-button"
-              onClick={() => setMobileOpen(false)}
-            >
-              ✕
+            <button className="collapse-btn" onClick={() => setMobileOpen(false)}>
+              <X size={14} />
             </button>
           )}
         </div>
 
-        <nav className="nav-list">
-          <Link href="/" className={`nav-link ${pathname === '/' ? 'active' : ''}`}>
-            {desktopCollapsed && !isMobile ? 'D' : 'Dashboard'}
-          </Link>
+        {/* Nav */}
+        <nav className="nav-section">
+          <div className="nav-label">Overview</div>
+          <NavItem
+            href="/"
+            active={pathname === '/'}
+            icon={<LayoutDashboard size={20} strokeWidth={1.8} />}
+            label="Dashboard"
+          />
 
+          <div className="nav-label" style={{ marginTop: 10 }}>Modules</div>
           {modules.map((module) => {
-            const href = `/module/${module.slug}`;
-            const active = pathname === href;
-
+            const Icon = MODULE_ICONS[module.slug];
             return (
-              <Link
+              <NavItem
                 key={module.slug}
-                href={href}
-                className={`nav-link ${active ? 'active' : ''}`}
-                onClick={() => {
-                  if (isMobile) setMobileOpen(false);
-                }}
-              >
-                {desktopCollapsed && !isMobile
-                  ? module.label.charAt(0)
-                  : module.label}
-              </Link>
+                href={`/module/${module.slug}`}
+                active={pathname === `/module/${module.slug}`}
+                icon={Icon ? <Icon size={20} strokeWidth={1.8} /> : null}
+                label={module.label}
+              />
             );
           })}
         </nav>
 
-        {(!desktopCollapsed || isMobile) && (
-          <div className="card compact sidebar-card">
-            <div className="badge">Recommended setup</div>
-            <p className="muted small sidebar-muted">
-              Host the app on Vercel and store live data in Supabase. Keep the workbook as your import template.
-            </p>
+        {/* Footer */}
+        <div className="sidebar-footer">
+          <div className="sidebar-status">
+            <span className="status-dot" />
+            <span className="status-text">Vercel + Supabase</span>
           </div>
-        )}
+        </div>
       </aside>
 
-      <main
-        className="content"
-        onClick={() => {
-          if (isMobile && mobileOpen) {
-            setMobileOpen(false);
-          }
-        }}
-      >
+      <div className="app-root">
         {isMobile && (
           <div className="mobile-topbar">
-            <button
-              className="menu-button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setMobileOpen(true);
-              }}
-            >
-              ☰ Menu
+            <div className="mobile-brand">
+              <div className="brand-icon" style={{ width: 28, height: 28, fontSize: 12, borderRadius: 8 }}>D</div>
+              Personal HQ
+            </div>
+            <button className="hamburger" onClick={() => setMobileOpen(true)}>
+              <Menu size={18} />
             </button>
           </div>
         )}
+        <main className="content" onClick={handleMainClick}>
+          {children}
+        </main>
+      </div>
+    </>
+  );
+}
 
-        {children}
-      </main>
-    </div>
+function NavItem({
+  href,
+  active,
+  icon,
+  label,
+}: {
+  href: string;
+  active: boolean;
+  icon: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <Link href={href} className={`nav-link${active ? ' active' : ''}`}>
+      <span className="nav-icon">{icon}</span>
+      <span className="nav-text">{label}</span>
+    </Link>
   );
 }

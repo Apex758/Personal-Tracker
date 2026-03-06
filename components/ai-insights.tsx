@@ -27,21 +27,31 @@ export function AiInsights({ slug, rows }: { slug: ModuleSlug; rows: RecordShape
 
   return (
     <div className="card">
-      <div className="section-header">
+      <div className="card-header">
         <div>
-          <p className="eyebrow">AI monitor</p>
-          <h3>Suggestions, patterns, and predictions</h3>
+          <p className="eyebrow">AI Monitor</p>
+          <p className="section-title">Patterns, suggestions & predictions</p>
         </div>
-        <button className="button primary" onClick={handleClick} disabled={loading}>
-          {loading ? 'Thinking…' : 'Generate insight'}
+        <button
+          className="btn btn-primary"
+          style={{ background: loading ? 'var(--surface-3)' : '#7c6ef7', borderColor: '#7c6ef7', color: loading ? 'var(--text-2)' : '#fff' }}
+          onClick={handleClick}
+          disabled={loading}
+        >
+          {loading ? 'Thinking…' : 'Generate Insight'}
         </button>
       </div>
-      <p className="muted">
-        Use this to spot spending issues, prioritise purchases, estimate shortfalls, or suggest next steps.
+      <p className="muted small" style={{ marginBottom: 12 }}>
+        Spot spending patterns, prioritize tasks, identify shortfalls, and get data-backed recommendations.
       </p>
       <div className="ai-output">
-        {response || 'Nothing generated yet. Tap the button to get analysis for this module.'}
+        {loading ? (
+          <span style={{ color: 'var(--text-3)' }}>Analysing {rows.length} records…</span>
+        ) : response || (
+          <span style={{ color: 'var(--text-3)' }}>Nothing generated yet. Hit the button to analyse this module with AI.</span>
+        )}
       </div>
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }

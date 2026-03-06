@@ -1,63 +1,77 @@
 import Link from 'next/link';
-import { BarChartCard, PieChartCard } from '@/components/charts';
+import { AreaChartCard, PieChartCard, RadialChartCard, ComposedChartCard } from '@/components/charts';
 import { StatCard } from '@/components/stat-card';
 import { getDashboardData } from '@/lib/data';
 import { formatMoney, formatNumber } from '@/lib/format';
 import { modules } from '@/lib/modules';
 
+const MODULE_ACCENTS: Record<string, string> = {
+  finance: '#00d4aa',
+  lifestyle: '#f06292',
+  skills: '#7c6ef7',
+  work: '#f5a623',
+  travel: '#38bdf8',
+  wishlist: '#c084fc',
+};
+
 export default async function DashboardPage() {
   const data = await getDashboardData();
 
   return (
-    <div className="stack">
-      <section className="hero">
-        <div>
-          <p className="eyebrow">Dashboard</p>
-          <h2>Your life, work, and money in one place.</h2>
-          <p className="muted max-width">
-            This is built for your laptop and your phone, and it is meant to sit on Vercel with Supabase as the live database. The workbook remains your backup template and import source.
+    <div className="page">
+      {/* Hero */}
+      <div className="hero">
+        <div className="hero-meta">
+          <p className="eyebrow">Personal HQ — Overview</p>
+          <h1 className="page-title">Your life, at a glance.</h1>
+          <p className="muted small" style={{ maxWidth: 480, marginTop: 6 }}>
+            Money, habits, skills, work, travel, and purchases — all in one place.
           </p>
         </div>
         <div className="hero-actions">
-          <Link href="/module/finance" className="button primary">Open finance</Link>
-          <Link href="/module/work" className="button secondary">Open work tracker</Link>
+          <Link href="/module/finance" className="btn btn-primary">Open Finance ↗</Link>
+          <Link href="/module/work" className="btn btn-secondary">Work Tracker</Link>
         </div>
-      </section>
+      </div>
 
-      <section className="grid grid-4">
-        <StatCard title="Income" value={formatMoney(data.stats.income)} helper={`Balance ${formatMoney(data.stats.balance)}`} />
-        <StatCard title="Savings" value={formatMoney(data.stats.savings)} helper="Savings + emergency view" />
-        <StatCard title="Work net" value={formatMoney(data.stats.workNet)} helper="Actual income minus work expense" />
-        <StatCard title="Skill hours" value={formatNumber(data.stats.skillHours)} helper="Tracked learning time" />
-      </section>
+      {/* Stats */}
+      <div className="stat-grid" style={{ marginBottom: 14 }}>
+        <StatCard title="Total Income" value={formatMoney(data.stats.income)} helper={`Balance ${formatMoney(data.stats.balance)}`} accent="#00d4aa" />
+        <StatCard title="Savings" value={formatMoney(data.stats.savings)} helper="Savings + emergency" accent="#7c6ef7" />
+        <StatCard title="Work Net" value={formatMoney(data.stats.workNet)} helper="Income minus work cost" accent="#f5a623" />
+        <StatCard title="Skill Hours" value={formatNumber(data.stats.skillHours)} helper="Logged learning time" accent="#38bdf8" />
+      </div>
 
-      <section className="grid grid-2">
-        <BarChartCard title="Finance by month" data={data.charts.financeByMonth} />
-        <PieChartCard title="Work status mix" data={data.charts.workStatuses} />
-      </section>
+      {/* Main charts row */}
+      <div className="grid grid-2" style={{ marginBottom: 14 }}>
+        <AreaChartCard title="Finance by Month" data={data.charts.financeByMonth} color="#00d4aa" />
+        <PieChartCard title="Work Status Mix" data={data.charts.workStatuses} />
+      </div>
 
-      <section className="grid grid-3">
-        <BarChartCard title="Lifestyle totals" data={data.charts.lifestyleHabits} />
-        <PieChartCard title="Travel status" data={data.charts.travelStatuses} />
-        <PieChartCard title="Wishlist priorities" data={data.charts.wishlistPriorities} />
-      </section>
+      {/* Second charts row */}
+      <div className="grid grid-3" style={{ marginBottom: 14 }}>
+        <RadialChartCard title="Lifestyle Habits" data={data.charts.lifestyleHabits} />
+        <PieChartCard title="Travel Status" data={data.charts.travelStatuses} />
+        <ComposedChartCard title="Wishlist Priorities" data={data.charts.wishlistPriorities} />
+      </div>
 
-      <section className="card">
-        <div className="section-header">
+      {/* Modules grid */}
+      <div className="card">
+        <div className="card-header">
           <div>
             <p className="eyebrow">Modules</p>
-            <h3>Jump into any area</h3>
+            <p className="section-title">Jump into any area</p>
           </div>
         </div>
         <div className="module-grid">
           {modules.map((module) => (
             <Link href={`/module/${module.slug}`} key={module.slug} className="module-card">
-              <h4>{module.label}</h4>
-              <p className="muted small">{module.description}</p>
+              <h4 style={{ color: MODULE_ACCENTS[module.slug] }}>{module.label}</h4>
+              <p>{module.description}</p>
             </Link>
           ))}
         </div>
-      </section>
+      </div>
     </div>
   );
 }
