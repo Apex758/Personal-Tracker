@@ -211,7 +211,83 @@ export function PieChartCard({ title, data }: { title: string; data: ChartPoint[
   );
 }
 
-/* ─── Composed Chart (bars + line) ─── */
+/* ─── Multi-Series Stacked Area Chart ─── */
+export function StackedAreaChartCard({
+  title,
+  data,
+  series,
+}: {
+  title: string;
+  data: Record<string, unknown>[];
+  series: { key: string; label: string; color: string }[];
+}) {
+  if (!data.length || !series.length) return null;
+
+  return (
+    <div className="card">
+      <div className="card-header">
+        <p className="section-title">{title}</p>
+      </div>
+      <div className="chart-wrap-lg">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+            <defs>
+              {series.map((s) => (
+                <linearGradient key={s.key} id={`sg-${s.key}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={s.color} stopOpacity={0.45} />
+                  <stop offset="95%" stopColor={s.color} stopOpacity={0.04} />
+                </linearGradient>
+              ))}
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+            <XAxis
+              dataKey="label"
+              tick={{ fontSize: 11, fill: '#4d5668' }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <YAxis tick={{ fontSize: 11, fill: '#4d5668' }} axisLine={false} tickLine={false} />
+            <Tooltip
+              content={({ active, payload, label }) => {
+                if (!active || !payload?.length) return null;
+                return (
+                  <div style={{ ...tooltipStyle.contentStyle, padding: '10px 14px', minWidth: 140 }}>
+                    <p style={{ color: '#f0f4ff', fontWeight: 700, marginBottom: 6, fontSize: 12 }}>{label}</p>
+                    {payload.map((p: any) => (
+                      <div key={p.dataKey} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: p.color, flexShrink: 0, display: 'inline-block' }} />
+                        <span style={{ color: '#8892a4', fontSize: 11 }}>{p.name}</span>
+                        <span style={{ color: '#f0f4ff', fontSize: 11, marginLeft: 'auto', fontWeight: 600 }}>{p.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              }}
+            />
+            <Legend
+              iconSize={8}
+              iconType="circle"
+              formatter={(value) => <span style={{ color: '#8892a4', fontSize: 11 }}>{value}</span>}
+            />
+            {series.map((s) => (
+              <Area
+                key={s.key}
+                type="monotone"
+                dataKey={s.key}
+                name={s.label}
+                stroke={s.color}
+                strokeWidth={1.8}
+                fill={`url(#sg-${s.key})`}
+                dot={false}
+                activeDot={{ r: 4, fill: s.color, strokeWidth: 0 }}
+              />
+            ))}
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
 export function ComposedChartCard({ title, data }: { title: string; data: ChartPoint[] }) {
   return (
     <div className="card">

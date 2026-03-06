@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useCallback } from 'react';
 import { AiInsights } from '@/components/ai-insights';
-import { AreaChartCard, BarChartCard } from '@/components/charts';
+import { AreaChartCard, StackedAreaChartCard } from '@/components/charts';
 import type { ModuleConfig, RecordShape } from '@/lib/types';
 import { formatMoney, formatNumber, titleCase } from '@/lib/format';
 
@@ -14,6 +14,29 @@ const ACCENT_MAP: Record<string, string> = {
   work: '#f5a623',
   travel: '#38bdf8',
   wishlist: '#c084fc',
+};
+
+// Modules where we want a multi-series stacked chart
+const MULTI_SERIES_MODULES = new Set(['lifestyle', 'finance', 'work', 'skills']);
+
+const SERIES_PALETTE = [
+  '#00d4aa', '#f06292', '#7c6ef7', '#f5a623',
+  '#38bdf8', '#c084fc', '#4ade80', '#fb923c',
+];
+
+const PIVOT_CONFIG: Record<string, { groupBy: string; valueKey: string; labelKey?: string }> = {
+  finance: { groupBy: 'financial_nature', valueKey: 'amount' }, // no labelKey → uses date slice
+  work:    { groupBy: 'status',           valueKey: 'hours' },
+};
+
+// Fixed color per financial_nature category so they're consistent
+const FINANCE_NATURE_COLORS: Record<string, string> = {
+  Income:         '#00d4aa',
+  Expense:        '#f06292',
+  Savings:        '#7c6ef7',
+  Frass:          '#f5a623',
+  Debt:           '#ef4444',
+  'Emergency Fund': '#38bdf8',
 };
 
 type EditState = Record<string, string | number | null>;
@@ -38,21 +61,102 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
     );
   }, [module.columns, rows]);
 
-  // Build a quick chart from numeric data
-  const chartData = useMemo(() => {
-    const dateCol = module.columns.find((c) => c.type === 'date');
-    const numCol = module.columns.find((c) => c.type === 'number');
-    if (!dateCol || !numCol) return [];
+  // All numeric columns (excluding obviously useless ones)
+  const numericCols = useMemo(
+    () => module.columns.filter((c) => c.type === 'number'),
+    [module.columns],
+  );
+
+  const dateCol = useMemo(
+    () => module.columns.find((c) => c.type === 'date'),
+    [module.columns],
+  );
+
+  // ── Module-specific pivot configs ────────────────────────────────────────
+  // For modules where a single amount col should be pivoted by a category col
+  const pivotCfg = PIVOT_CONFIG[module.slug];
+
+  // Pivot chart: group rows by date/label, split into series by a categorical col
+  const { pivotData, pivotSeries } = useMemo(() => {
+    if (!pivotCfg) return { pivotData: [], pivotSeries: [] };
+
+    const { groupBy, valueKey, labelKey } = pivotCfg;
+
+    // Collect all category values for series
+    const categorySet = new Set<string>();
+    rows.forEach((r) => {
+      const cat = String(r[groupBy] ?? '').trim();
+      if (cat) categorySet.add(cat);
+    });
+    const categories = Array.from(categorySet);
+
+    // Group by YYYY-MM from the date column — skip rows with no date
+    const map = new Map<string, Record<string, number>>();
+    rows.forEach((r) => {
+      const rawDate = String(r[dateCol?.key ?? 'date'] ?? '');
+      if (!rawDate || rawDate === 'null') return; // skip dateless rows
+      const label = rawDate.length >= 7 ? rawDate.slice(0, 7) : rawDate;
+      const cat = String(r[groupBy] ?? '').trim() || 'Other';
+      const val = Number(r[valueKey] || 0);
+      if (!map.has(label)) map.set(label, {});
+      const entry = map.get(label)!;
+      entry[cat] = (entry[cat] ?? 0) + val;
+    });
+
+    const sorted = Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
+
+    const data = sorted.map(([label, vals]) => ({ label, ...vals }));
+    const series = categories.map((cat, i) => ({
+      key: cat,
+      label: cat,
+      color: (module.slug === 'finance' && FINANCE_NATURE_COLORS[cat])
+        ? FINANCE_NATURE_COLORS[cat]
+        : SERIES_PALETTE[i % SERIES_PALETTE.length],
+    }));
+
+    return { pivotData: data, pivotSeries: series };
+  }, [rows, pivotCfg, dateCol]);
+
+  // Multi-numeric-col stacked chart (lifestyle: many numeric cols per date row)
+  const { multiSeriesData, multiSeries } = useMemo(() => {
+    if (pivotCfg || numericCols.length < 2 || !MULTI_SERIES_MODULES.has(module.slug)) {
+      return { multiSeriesData: [], multiSeries: [] };
+    }
+    const map = new Map<string, Record<string, number>>();
+    rows.forEach((r) => {
+      const label = String(r[dateCol?.key ?? 'date'] ?? '').slice(0, 10) || 'N/A';
+      if (!map.has(label)) map.set(label, {});
+      const entry = map.get(label)!;
+      numericCols.forEach((col) => {
+        entry[col.key] = (entry[col.key] ?? 0) + Number(r[col.key] || 0);
+      });
+    });
+    const cols = module.slug === 'lifestyle' ? [...numericCols].reverse() : numericCols;
+    const data = Array.from(map.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([label, vals]) => ({ label, ...vals }));
+    const series = cols.map((col, i) => ({
+      key: col.key,
+      label: col.label,
+      color: SERIES_PALETTE[i % SERIES_PALETTE.length],
+    }));
+    return { multiSeriesData: data, multiSeries: series };
+  }, [rows, pivotCfg, dateCol, numericCols, module.slug]);
+
+  // Fallback single-series
+  const singleSeriesData = useMemo(() => {
+    if (pivotCfg || multiSeriesData.length) return [];
+    if (!dateCol || !numericCols[0]) return [];
     const map = new Map<string, number>();
     rows.forEach((r) => {
       const label = String(r[dateCol.key] ?? '').slice(0, 7) || 'N/A';
-      map.set(label, (map.get(label) ?? 0) + Number(r[numCol.key] || 0));
+      map.set(label, (map.get(label) ?? 0) + Number(r[numericCols[0].key] || 0));
     });
     return Array.from(map.entries())
       .sort(([a], [b]) => a.localeCompare(b))
-      .slice(-8)
+      .slice(-10)
       .map(([label, value]) => ({ label, value }));
-  }, [rows, module.columns]);
+  }, [rows, pivotCfg, multiSeriesData, dateCol, numericCols]);
 
   async function refresh() {
     const res = await fetch(`/api/records/${module.slug}`);
@@ -154,8 +258,10 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
         </div>
       </div>
 
-      {/* Stat cards */}
-      {numericTotals.length > 0 && (
+      {/* Stat cards — finance gets per-nature breakdown, others get numeric totals */}
+      {module.slug === 'finance' ? (
+        <FinanceStatCards rows={rows} accent={accent} />
+      ) : numericTotals.length > 0 ? (
         <div className="stat-grid" style={{ marginBottom: 14 }}>
           {numericTotals.map(([key, val]) => (
             <StatMini
@@ -166,18 +272,34 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
             />
           ))}
         </div>
-      )}
+      ) : null}
 
-      {/* Chart */}
-      {chartData.length > 1 && (
+      {/* Chart — pivot > multi-series > single */}
+      {pivotCfg && pivotData.length > 0 ? (
+        <div style={{ marginBottom: 14 }}>
+          <StackedAreaChartCard
+            title={`${module.label} — by month`}
+            data={pivotData}
+            series={pivotSeries}
+          />
+        </div>
+      ) : multiSeriesData.length > 1 ? (
+        <div style={{ marginBottom: 14 }}>
+          <StackedAreaChartCard
+            title={`${module.label} — all series by date`}
+            data={multiSeriesData}
+            series={multiSeries}
+          />
+        </div>
+      ) : singleSeriesData.length > 1 ? (
         <div style={{ marginBottom: 14 }}>
           <AreaChartCard
             title={`${module.label} — trend`}
-            data={chartData}
+            data={singleSeriesData}
             color={accent}
           />
         </div>
-      )}
+      ) : null}
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
@@ -300,6 +422,40 @@ function StatMini({ label, value, accent }: { label: string; value: string; acce
       <div className="stat-accent-bar" style={{ background: `linear-gradient(90deg, ${accent}, transparent)` }} />
       <div className="stat-label">{label}</div>
       <div className="stat-value" style={{ fontSize: '1.4rem' }}>{value}</div>
+    </div>
+  );
+}
+
+const FINANCE_NATURES = [
+  { nature: 'Income',         label: 'Income',         color: '#00d4aa' },
+  { nature: 'Expense',        label: 'Expenses',        color: '#f06292' },
+  { nature: 'Savings',        label: 'Savings',         color: '#7c6ef7' },
+  { nature: 'Debt',           label: 'Debt',            color: '#ef4444' },
+  { nature: 'Emergency Fund', label: 'Emergency Fund',  color: '#38bdf8' },
+  { nature: 'Frass',          label: 'Monthly Goals',   color: '#f5a623' },
+];
+
+function FinanceStatCards({ rows, accent }: { rows: RecordShape[]; accent: string }) {
+  const totals = useMemo(() => {
+    const map: Record<string, number> = {};
+    rows.forEach((r) => {
+      const nature = String(r.financial_nature ?? '').trim();
+      const amount = Number(r.amount || 0);
+      if (nature) map[nature] = (map[nature] ?? 0) + amount;
+    });
+    return map;
+  }, [rows]);
+
+  return (
+    <div className="stat-grid" style={{ marginBottom: 14 }}>
+      {FINANCE_NATURES.map(({ nature, label, color }) => (
+        <StatMini
+          key={nature}
+          label={label}
+          value={formatMoney(totals[nature] ?? 0)}
+          accent={color}
+        />
+      ))}
     </div>
   );
 }
