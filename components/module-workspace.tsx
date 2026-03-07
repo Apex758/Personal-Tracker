@@ -8,7 +8,7 @@ import {
 } from 'recharts';
 import { AiInsights } from '@/components/ai-insights';
 import { AreaChartCard, StackedAreaChartCard } from '@/components/charts';
-import { useMonth } from '@/lib/month-context';
+
 import type { ModuleConfig, RecordShape } from '@/lib/types';
 import { formatMoney, formatNumber, titleCase } from '@/lib/format';
 
