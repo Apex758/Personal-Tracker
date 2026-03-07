@@ -178,6 +178,16 @@ button, input, select, textarea { font: inherit; }
   overflow: hidden;
 }
 
+.sidebar:not(.expanded) .sidebar-top {
+  padding-left: 12px;
+  padding-right: 12px;
+  justify-content: center;
+}
+
+.sidebar:not(.expanded) .brand-icon {
+  margin: 0 auto;
+}
+
 .sidebar-brand {
   display: flex;
   align-items: center;

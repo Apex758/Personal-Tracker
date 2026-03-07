@@ -6,4 +6,11 @@ const withPWA = require("next-pwa")({
   skipWaiting: true,
 });
 
-module.exports = withPWA({});
+module.exports = withPWA({
+  // Increase the body size limit for API routes (needed for base64 photo uploads)
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '4mb',
+    },
+  },
+});

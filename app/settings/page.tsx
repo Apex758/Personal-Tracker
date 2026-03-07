@@ -10,47 +10,85 @@ const TABS = [
 
 type TabId = typeof TABS[number]['id'];
 
+// ─── Compress image to stay well under the 4 MB limit ────────────────────────
+function compressImage(dataUrl: string, maxWidth = 400): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, maxWidth / img.width);
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', 0.82));
+    };
+    img.src = dataUrl;
+  });
+}
+
+// ─── Profile Tab ─────────────────────────────────────────────────────────────
 function ProfileTab() {
-  const [name, setName]     = useState('');
-  const [bio, setBio]       = useState('');
-  const [image, setImage]   = useState('');
-  const [saving, setSaving] = useState(false);
-  const [status, setStatus] = useState<'idle' | 'saved' | 'error'>('idle');
+  const [name, setName]       = useState('');
+  const [bio, setBio]         = useState('');
+  const [image, setImage]     = useState('');
+  const [saving, setSaving]   = useState(false);
+  const [error, setError]     = useState('');
+  const [status, setStatus]   = useState<'idle' | 'saved' | 'error'>('idle');
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Load from Supabase on mount
   useEffect(() => {
     fetch('/api/profile', { cache: 'no-store' })
       .then((r) => r.json())
-      .then((d) => { setName(d.name || ''); setBio(d.bio || ''); setImage(d.image_url || ''); })
-      .catch(() => {});
+      .then((d) => {
+        setName(d.name ?? '');
+        setBio(d.bio ?? '');
+        setImage(d.image_url ?? '');
+      })
+      .catch(() => setError('Could not load profile from Supabase.'));
   }, []);
 
-  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => setImage(ev.target?.result as string);
+    reader.onload = async (ev) => {
+      const raw = ev.target?.result as string;
+      const compressed = await compressImage(raw);
+      setImage(compressed);
+    };
     reader.readAsDataURL(file);
   }
 
   async function handleSave() {
     setSaving(true);
+    setError('');
     setStatus('idle');
+
     try {
       const res = await fetch('/api/profile', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, bio, image_url: image }),
       });
-      if (!res.ok) throw new Error();
-      // Refresh the shell instantly
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json.error || `HTTP ${res.status}`);
+      }
+
+      // Refresh the sidebar brand instantly
       await loadProfile();
       setStatus('saved');
-    } catch {
+    } catch (err: any) {
+      setError(err.message || 'Save failed. Check Supabase env vars.');
       setStatus('error');
     } finally {
       setSaving(false);
-      setTimeout(() => setStatus('idle'), 2500);
+      setTimeout(() => setStatus('idle'), 3000);
     }
   }
 
@@ -95,23 +133,43 @@ function ProfileTab() {
               Remove photo
             </button>
           )}
-          <p className="muted small" style={{ marginTop: 6 }}>JPG, PNG or WebP.</p>
+          <p className="muted small" style={{ marginTop: 6 }}>JPG, PNG or WebP. Auto-compressed.</p>
         </div>
         <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFile} />
       </div>
 
-      {/* Fields */}
+      {/* Name */}
       <div className="field" style={{ marginBottom: 18 }}>
         <label>Display Name</label>
-        <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Delon Pierre" />
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g. Delon Pierre"
+          onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); }}
+        />
       </div>
 
+      {/* Bio */}
       <div className="field" style={{ marginBottom: 28 }}>
         <label>Bio</label>
-        <textarea value={bio} onChange={(e) => setBio(e.target.value)} placeholder="A short intro about yourself…" style={{ minHeight: 90 }} />
+        <textarea
+          value={bio}
+          onChange={(e) => setBio(e.target.value)}
+          placeholder="A short intro about yourself…"
+          style={{ minHeight: 90 }}
+        />
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      {/* Error message */}
+      {error && (
+        <div className="msg msg-err" style={{ marginBottom: 14 }}>
+          ⚠ {error}
+        </div>
+      )}
+
+      {/* Save */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
         <button
           onClick={handleSave}
           disabled={saving}
@@ -119,17 +177,17 @@ function ProfileTab() {
           style={{
             background: status === 'saved' ? '#4ade80' : status === 'error' ? '#ef4444' : 'var(--teal)',
             borderColor: status === 'saved' ? '#4ade80' : status === 'error' ? '#ef4444' : 'var(--teal)',
-            color: '#000', minWidth: 140, transition: 'background 0.3s, border-color 0.3s',
+            color: '#000', minWidth: 150, transition: 'background 0.3s, border-color 0.3s',
           }}
         >
-          {saving ? 'Saving…' : status === 'saved' ? '✓ Saved!' : status === 'error' ? 'Error — retry' : 'Save Profile'}
+          {saving ? 'Saving…' : status === 'saved' ? '✓ Saved to Supabase' : status === 'error' ? 'Failed — retry' : 'Save Profile'}
         </button>
-        <span className="muted small">Saved to Supabase</span>
       </div>
     </div>
   );
 }
 
+// ─── Page ─────────────────────────────────────────────────────────────────────
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<TabId>('profile');
 
@@ -144,7 +202,7 @@ export default function SettingsPage() {
       </div>
 
       <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
-        {/* Left tab list */}
+        {/* Tab list */}
         <div style={{ width: 200, flexShrink: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 8 }}>
           {TABS.map(({ id, label, icon: Icon }) => (
             <button
@@ -170,7 +228,7 @@ export default function SettingsPage() {
           ))}
         </div>
 
-        {/* Right content */}
+        {/* Content */}
         <div className="card" style={{ flex: 1, minWidth: 0 }}>
           {activeTab === 'profile' && <ProfileTab />}
         </div>
