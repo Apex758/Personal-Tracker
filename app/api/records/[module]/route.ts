@@ -31,7 +31,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!parsed.success) return NextResponse.json({ error: 'Invalid payload.' }, { status: 400 });
 
   const cleaned = Object.fromEntries(
-    config.columns.map((column) => [column.key, parsed.data[column.key] ?? null]),
+    config.columns.map((column) => {
+      const raw = parsed.data[column.key];
+      // Coerce empty strings → null so Supabase typed columns (date, number) don't reject
+      const value = raw === '' || raw === undefined ? null : raw;
+      // Coerce numeric columns — if a string slipped through, cast it
+      if (column.type === 'number' && value !== null) return [column.key, Number(value)];
+      return [column.key, value];
+    }),
   );
 
   const { error } = await supabase.from(config.table).insert(cleaned);
