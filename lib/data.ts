@@ -138,7 +138,9 @@ export async function getDashboardData() {
       skillHours,
     },
     charts: {
-      financeByMonth: Array.from(financeByMonthMap.entries()).map(([label, value]) => ({ label, value })),
+    financeByMonth: MONTH_ORDER 
+      .slice(0, new Date().getMonth() + 1)
+      .map((m) => ({ label: m, value: financeByMonthMap.get(m) ?? 0 })), 
       workStatuses: Array.from(workStatusMap.entries()).map(([label, value]) => ({ label, value })),
       lifestyleHabits,
       travelStatuses: Array.from(travelStatusMap.entries()).map(([label, value]) => ({ label, value })),

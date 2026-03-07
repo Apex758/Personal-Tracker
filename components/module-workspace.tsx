@@ -134,6 +134,19 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
 
   const pivotCfg = PIVOT_CONFIG[module.slug];
 
+  const displayRows = useMemo(() => {
+    const dateCol = module.columns.find((c) => c.type === 'date');
+    if (!dateCol) return rows;
+    return rows.filter((r) => {
+      const dateStr = String(r[dateCol.key] ?? '');
+      if (!dateStr || dateStr === 'null') return true;
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return true;
+      return d.getFullYear() === selectedYear &&
+        d.toLocaleString('default', { month: 'long' }) === selectedMonth;
+    });
+  }, [rows, module, selectedMonth, selectedYear]);
+
   const { pivotData, pivotSeries } = useMemo(() => {
     if (!pivotCfg) return { pivotData: [], pivotSeries: [] };
 
@@ -186,7 +199,7 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
       return { multiSeriesData: [], multiSeries: [] };
     }
     const map = new Map<string, Record<string, number>>();
-    rows.forEach((r) => {
+    displayRows.forEach((r) => {
       const label = String(r[dateCol?.key ?? 'date'] ?? '').slice(0, 10) || 'N/A';
       if (!map.has(label)) map.set(label, {});
       const entry = map.get(label)!;
@@ -204,7 +217,7 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
       color: SERIES_PALETTE[i % SERIES_PALETTE.length],
     }));
     return { multiSeriesData: data, multiSeries: series };
-  }, [rows, pivotCfg, dateCol, numericCols, module.slug]);
+    }, [displayRows, pivotCfg, dateCol, numericCols, module.slug]);
 
   const singleSeriesData = useMemo(() => {
     if (pivotCfg || multiSeriesData.length) return [];
@@ -324,19 +337,7 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
     try { localStorage.setItem(collapsedKey, String(val)); } catch {}
   }
 
-  // Finance: filter rows by selected month AND year for table + stat cards
-  const displayRows = useMemo(() => {
-    const dateCol = module.columns.find((c) => c.type === 'date');
-    if (!dateCol) return rows;
-    return rows.filter((r) => {
-      const dateStr = String(r[dateCol.key] ?? '');
-      if (!dateStr || dateStr === 'null') return true;
-      const d = new Date(dateStr);
-      if (isNaN(d.getTime())) return true;
-      return d.getFullYear() === selectedYear &&
-        d.toLocaleString('default', { month: 'long' }) === selectedMonth;
-    });
-  }, [rows, module, selectedMonth, selectedYear]);
+ 
 
   return (
     <div className="page">
@@ -558,6 +559,15 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
                     type={col.type === 'number' ? 'number' : col.type === 'date' ? 'date' : 'text'}
                     value={String(form[col.key] ?? '')}
                     onChange={(e) => setForm((f) => ({ ...f, [col.key]: col.type === 'number' ? Number(e.target.value) : e.target.value }))}
+                    {...(col.type === 'date' && (() => {
+                      const monthIndex = MONTHS.indexOf(selectedMonth);
+                      const pad = String(monthIndex + 1).padStart(2, '0');
+                      const daysInMonth = new Date(selectedYear, monthIndex + 1, 0).getDate();
+                      return {
+                        min: `${selectedYear}-${pad}-01`,
+                        max: `${selectedYear}-${pad}-${String(daysInMonth).padStart(2, '0')}`,
+                      };
+                    })())}
                   />
                 )}
               </div>

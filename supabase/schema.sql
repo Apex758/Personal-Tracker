@@ -1,9 +1,129 @@
--- ============================================================
--- PERSONAL HQ — CLEAN RESET & IMPORT
--- Paste this entire file into Supabase SQL Editor and run it.
--- ============================================================
+-- 1. CREATE TABLES (if not exist)
+CREATE TABLE IF NOT EXISTS finance_entries (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  date DATE,
+  financial_nature TEXT,
+  account_type TEXT,
+  category TEXT,
+  payment_method TEXT,
+  project TEXT,
+  amount NUMERIC,
+  month TEXT,
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
 
--- 1. WIPE ALL TABLES
+CREATE TABLE IF NOT EXISTS lifestyle_entries (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  date DATE,
+  prayers_praises INTEGER,
+  gym INTEGER,
+  smoking INTEGER,
+  drinking INTEGER,
+  skincare INTEGER,
+  haircare INTEGER,
+  hand_feet_care INTEGER,
+  journal INTEGER,
+  water_glasses INTEGER,
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS skill_entries (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  date DATE,
+  skill_area TEXT,
+  specific_skill TEXT,
+  goal_outcome TEXT,
+  current_level INTEGER,
+  target_level INTEGER,
+  hours_invested NUMERIC,
+  learning_resource TEXT,
+  status TEXT,
+  next_review_date DATE,
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS work_entries (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  date DATE,
+  area TEXT,
+  project_client TEXT,
+  task_deliverable TEXT,
+  priority TEXT,
+  status TEXT,
+  hours NUMERIC,
+  expected_income NUMERIC,
+  actual_income NUMERIC,
+  expense NUMERIC,
+  due_date DATE,
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS travel_entries (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  trip_name TEXT,
+  destination TEXT,
+  purpose TEXT,
+  start_date DATE,
+  end_date DATE,
+  budget NUMERIC,
+  estimated_cost NUMERIC,
+  actual_cost NUMERIC,
+  status TEXT,
+  booking_reference TEXT,
+  people INTEGER,
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS wishlist_entries (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  item TEXT,
+  category TEXT,
+  priority TEXT,
+  need_or_want TEXT,
+  target_budget NUMERIC,
+  expected_price NUMERIC,
+  actual_price NUMERIC,
+  purchase_status TEXT,
+  shop_source TEXT,
+  target_date DATE,
+  bought_date DATE,
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS recipe_entries (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  category TEXT,
+  image_url TEXT,
+  prep_time TEXT,
+  cook_time TEXT,
+  servings INTEGER,
+  ingredients TEXT,
+  instructions TEXT,
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS gym_entries (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  date DATE,
+  exercise TEXT,
+  category TEXT,
+  sets INTEGER,
+  reps INTEGER,
+  weight_kg NUMERIC,
+  duration_min INTEGER,
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 2. WIPE ALL TABLES
 TRUNCATE TABLE finance_entries   RESTART IDENTITY CASCADE;
 TRUNCATE TABLE lifestyle_entries RESTART IDENTITY CASCADE;
 TRUNCATE TABLE skill_entries     RESTART IDENTITY CASCADE;
@@ -11,7 +131,7 @@ TRUNCATE TABLE work_entries      RESTART IDENTITY CASCADE;
 TRUNCATE TABLE travel_entries    RESTART IDENTITY CASCADE;
 TRUNCATE TABLE wishlist_entries  RESTART IDENTITY CASCADE;
 TRUNCATE TABLE recipe_entries    RESTART IDENTITY CASCADE;
-
+TRUNCATE TABLE gym_entries       RESTART IDENTITY CASCADE;
 
 -- 2. FINANCE (8 real rows)
 INSERT INTO finance_entries (date, financial_nature, account_type, category, payment_method, project, amount, month) VALUES
