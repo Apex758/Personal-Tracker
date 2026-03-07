@@ -10,6 +10,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        {/* PWA */}
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#00d4aa" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="Personal HQ" />
+        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+
         {/* Anti-flash: set theme before first paint */}
         <script
           dangerouslySetInnerHTML={{
