@@ -15,6 +15,8 @@ import {
   ShoppingCart,
   Menu,
   X,
+  Sun,
+  Moon,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -33,7 +35,26 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const [expanded, setExpanded] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Read saved theme on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('phq-theme') as 'dark' | 'light' | null;
+      if (saved === 'light' || saved === 'dark') {
+        setTheme(saved);
+        document.documentElement.setAttribute('data-theme', saved);
+      }
+    } catch {}
+  }, []);
+
+  const toggleTheme = () => {
+    const next = theme === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+    document.documentElement.setAttribute('data-theme', next);
+    try { localStorage.setItem('phq-theme', next); } catch {}
+  };
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth <= 820);
@@ -108,6 +129,16 @@ export function Shell({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className="sidebar-footer">
+          {/* Theme toggle */}
+          <button className="theme-toggle" onClick={toggleTheme} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}>
+            <span className="theme-toggle-icon">
+              {theme === 'dark' ? <Sun size={16} strokeWidth={1.8} /> : <Moon size={16} strokeWidth={1.8} />}
+            </span>
+            <span className="theme-toggle-label">
+              {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+            </span>
+          </button>
+
           <div className="sidebar-status">
             <span className="status-dot" />
             <span className="status-text">Vercel + Supabase</span>
@@ -122,9 +153,27 @@ export function Shell({ children }: { children: React.ReactNode }) {
               <div className="brand-icon" style={{ width: 28, height: 28, fontSize: 12, borderRadius: 8 }}>D</div>
               Personal HQ
             </div>
-            <button className="hamburger" onClick={() => setMobileOpen(true)}>
-              <Menu size={18} />
-            </button>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              {/* Mobile theme toggle */}
+              <button
+                onClick={toggleTheme}
+                style={{
+                  width: 36, height: 36, borderRadius: 8,
+                  border: '1px solid var(--border)',
+                  background: 'var(--surface-2)',
+                  color: 'var(--text)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+              </button>
+              <button className="hamburger" onClick={() => setMobileOpen(true)}>
+                <Menu size={18} />
+              </button>
+            </div>
           </div>
         )}
         <main className="content" onClick={handleMainClick}>
