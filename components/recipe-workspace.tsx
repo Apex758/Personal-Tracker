@@ -337,7 +337,7 @@ export function RecipeWorkspace({ initialRows }: { initialRows: RecordShape[] })
 
   async function handleSave() {
     if (mode === 'new') {
-      const newRecipe: Recipe = { ...draft, id: `recipe-${Date.now()}` };
+      const newRecipe = { ...draft, id: `recipe-${Date.now()}` } as Recipe;
       setRecipes((prev) => [newRecipe, ...prev]);
       setSelectedId(newRecipe.id);
       if (newRecipe.category) setExpandedCategories((prev) => new Set([...prev, newRecipe.category]));
