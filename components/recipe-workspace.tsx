@@ -77,7 +77,6 @@ export function RecipeWorkspace({ initialRows }: { initialRows: RecordShape[] })
   const [showAddModal, setShowAddModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Group recipes by category
   const recipesByCategory = useMemo(() => {
     const grouped: Record<string, Recipe[]> = {};
     recipes.forEach((recipe) => {
@@ -92,24 +91,18 @@ export function RecipeWorkspace({ initialRows }: { initialRows: RecordShape[] })
 
   const toggleCategory = (cat: string) => {
     const newExpanded = new Set(expandedCategories);
-    if (newExpanded.has(cat)) {
-      newExpanded.delete(cat);
-    } else {
-      newExpanded.add(cat);
-    }
+    if (newExpanded.has(cat)) newExpanded.delete(cat);
+    else newExpanded.add(cat);
     setExpandedCategories(newExpanded);
   };
 
   const selectedRecipe = recipes.find((r) => r.id === selectedRecipeId);
 
-  // Pagination for long recipes
   const totalPages = useMemo(() => {
     if (!selectedRecipe) return 1;
     const content = [selectedRecipe.ingredients, selectedRecipe.instructions, selectedRecipe.notes]
-      .filter(Boolean)
-      .join('\n\n');
-    const charsPerPage = 2000;
-    return Math.max(1, Math.ceil(content.length / charsPerPage));
+      .filter(Boolean).join('\n\n');
+    return Math.max(1, Math.ceil(content.length / 2000));
   }, [selectedRecipe]);
 
   const handleRecipeClick = (id: string) => {
@@ -119,192 +112,246 @@ export function RecipeWorkspace({ initialRows }: { initialRows: RecordShape[] })
 
   return (
     <div className="page">
-      {/* Module Header - like other tabs */}
-      <div style={{ marginBottom: 24 }}>
-        <p className="eyebrow">Module</p>
-        <h1 className="page-title" style={{ color: 'var(--accent-recipe)' }}>Recipe Book</h1>
-        <p className="muted small" style={{ maxWidth: 440, marginTop: 4 }}>
-          Your personal cookbook with all your favorite recipes organized by category.
-        </p>
-        <div className="record-chip" style={{ marginTop: 12 }}>
-          <strong>{recipes.length}</strong> recipes
+      {/* Module Header */}
+      <div className="hero" style={{ paddingBottom: 20 }}>
+        <div className="hero-meta">
+          <p className="eyebrow">Module</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <h1 className="page-title" style={{ color: 'var(--accent-recipe)' }}>Recipe Book</h1>
+            <div className="record-chip">
+              <strong>{recipes.length}</strong> recipes
+            </div>
+          </div>
+          <p className="muted small" style={{ maxWidth: 440, marginTop: 4 }}>
+            Your personal cookbook with all your favorite recipes organized by category.
+          </p>
         </div>
       </div>
 
-      <div className="recipe-workspace">
-        {/* Table of Contents - Left Side */}
-        <div className="recipe-toc">
-          <div className="toc-header">
-            <div className="toc-title">
-              <ChefHat size={20} />
-              Contents
+      {/* Workspace — two-panel layout inside a card */}
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', minHeight: 600 }}>
+
+          {/* Table of Contents — Left panel */}
+          <div style={{
+            width: 240,
+            flexShrink: 0,
+            borderRight: '1px solid var(--border)',
+            display: 'flex',
+            flexDirection: 'column',
+            padding: '20px 12px',
+            gap: 4,
+            overflowY: 'auto',
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: 16,
+              paddingBottom: 12,
+              borderBottom: '1px solid var(--border)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1rem', color: 'var(--text)' }}>
+                <ChefHat size={18} style={{ color: 'var(--accent-recipe)' }} />
+                Contents
+              </div>
+              <button
+                onClick={() => setShowAddModal(true)}
+                style={{
+                  background: 'var(--accent-recipe)', color: '#fff', border: 'none',
+                  borderRadius: 'var(--radius-xs)', padding: '5px 10px',
+                  fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 4,
+                }}
+              >
+                <Plus size={13} /> Add
+              </button>
             </div>
-            <button className="add-recipe-btn" onClick={() => setShowAddModal(true)}>
-              <Plus size={16} />
-              Add Recipe
-            </button>
+
+            {categories.map((category) => (
+              <div key={category}>
+                <button
+                  onClick={() => toggleCategory(category)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    padding: '8px 10px', background: 'var(--surface-2)',
+                    borderRadius: 'var(--radius-xs)', cursor: 'pointer',
+                    border: 'none', width: '100%', textAlign: 'left',
+                    color: 'var(--text)', fontWeight: 600, fontSize: '0.85rem',
+                    marginBottom: 2,
+                  }}
+                >
+                  <span style={{ color: 'var(--accent-recipe)' }}>
+                    {expandedCategories.has(category) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  </span>
+                  {category}
+                </button>
+
+                {expandedCategories.has(category) && (
+                  <div style={{ marginLeft: 16, marginBottom: 4 }}>
+                    {recipesByCategory[category].map((recipe) => (
+                      <button
+                        key={recipe.id}
+                        onClick={() => handleRecipeClick(recipe.id)}
+                        style={{
+                          display: 'block', width: '100%', textAlign: 'left',
+                          padding: '6px 10px', fontSize: '0.82rem', cursor: 'pointer',
+                          borderRadius: 'var(--radius-xs)', border: 'none',
+                          background: selectedRecipeId === recipe.id ? 'var(--accent-recipe)' : 'none',
+                          color: selectedRecipeId === recipe.id ? '#fff' : 'var(--text-2)',
+                          marginBottom: 1,
+                          transition: 'background 0.15s, color 0.15s',
+                        }}
+                      >
+                        {recipe.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
 
-          {categories.map((category) => (
-            <div key={category} className="toc-category">
-              <button
-                className="toc-category-header"
-                onClick={() => toggleCategory(category)}
-              >
-                <span className={`toc-category-icon ${expandedCategories.has(category) ? 'expanded' : ''}`}>
-                  {expandedCategories.has(category) ? (
-                    <ChevronDown size={16} />
-                  ) : (
-                    <ChevronRight size={16} />
-                  )}
-                </span>
-                {category}
-              </button>
-              
-              {expandedCategories.has(category) && (
-                <div className="toc-recipe-list">
-                  {recipesByCategory[category].map((recipe) => (
-                    <button
-                      key={recipe.id}
-                      className={`toc-recipe-item ${selectedRecipeId === recipe.id ? 'active' : ''}`}
-                      onClick={() => handleRecipeClick(recipe.id)}
-                    >
-                      {recipe.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
+          {/* Recipe Page — Right panel */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            {selectedRecipe ? (
+              <>
+                <div style={{ flex: 1, padding: '36px 40px', overflowY: 'auto' }}>
+                  {/* Title */}
+                  <h1 style={{
+                    textAlign: 'center',
+                    letterSpacing: '2px',
+                    textTransform: 'uppercase',
+                    borderBottom: '1px solid var(--border)',
+                    paddingBottom: 20,
+                    marginBottom: 28,
+                    fontFamily: 'Georgia, serif',
+                    fontSize: '1.8rem',
+                    fontWeight: 700,
+                    color: 'var(--text)',
+                  }}>
+                    {selectedRecipe.name}
+                  </h1>
 
-        {/* Recipe Page - Right Side */}
-        <div className="recipe-page-container">
-          {selectedRecipe ? (
-            <>
-              <div className="recipe-page">
-                {/* Centered Title with Serif Font */}
-                <h1 className="recipe-title" style={{ 
-                  textAlign: 'center', 
-                  letterSpacing: '2px', 
-                  textTransform: 'uppercase', 
-                  borderBottom: '1px solid var(--border)', 
-                  paddingBottom: '20px', 
-                  marginBottom: '30px',
-                  fontFamily: 'Georgia, serif'
-                }}>
-                  {selectedRecipe.name}
-                </h1>
+                  {/* Two-column layout */}
+                  <div style={{ display: 'flex', gap: 36 }}>
 
-                {/* Two-Column Layout */}
-                <div className="recipe-grid" style={{ display: 'flex', gap: '40px' }}>
-                  
-                  {/* Left Column: Ingredients & Notes */}
-                  <div className="recipe-column-left" style={{ flex: '1' }}>
-                    <div className="recipe-section">
-                      <h3 className="recipe-section-title" style={{ fontFamily: 'Georgia, serif', fontSize: '1.5rem', marginBottom: '15px' }}>Ingredients</h3>
-                      <div className="recipe-text ingredients-list">
+                    {/* Left: Ingredients (narrower) */}
+                    <div style={{ width: 180, flexShrink: 0 }}>
+                      <h3 style={{
+                        fontFamily: 'Georgia, serif', fontSize: '1.1rem',
+                        marginBottom: 14, color: 'var(--accent-recipe)',
+                        borderBottom: `2px solid var(--accent-recipe)`, paddingBottom: 6,
+                      }}>
+                        Ingredients
+                      </h3>
+                      <div style={{ whiteSpace: 'pre-wrap', color: 'var(--text-2)', lineHeight: 1.8, fontSize: '0.875rem' }}>
                         {selectedRecipe.ingredients}
                       </div>
-                    </div>
 
-                    {selectedRecipe.notes && (
-                      <>
-                        <hr style={{ border: 'none', borderTop: '2px dotted var(--border)', margin: '30px 0' }} />
-                        <div className="recipe-section">
-                          <div className="recipe-text" style={{ fontSize: '0.9rem', color: 'var(--text-2)' }}>
-                            <strong>Notes: </strong>{selectedRecipe.notes}
+                      {selectedRecipe.notes ? (
+                        <>
+                          <hr style={{ border: 'none', borderTop: '2px dotted var(--border)', margin: '24px 0' }} />
+                          <div style={{ fontSize: '0.82rem', color: 'var(--text-2)' }}>
+                            <strong style={{ color: 'var(--text)' }}>Notes: </strong>{selectedRecipe.notes}
                           </div>
-                        </div>
-                      </>
-                    )}
-                  </div>
-
-                  {/* Right Column: Meta, Image, Preparation */}
-                  <div className="recipe-column-right" style={{ flex: '2' }}>
-                    
-                    {/* Meta Info Row - using lucide icons */}
-                    <div className="recipe-meta-row" style={{ display: 'flex', justifyContent: 'space-around', borderBottom: '1px dotted var(--border)', paddingBottom: '20px', marginBottom: '20px', textAlign: 'center' }}>
-                      {selectedRecipe.prep_time && (
-                        <div className="recipe-meta-item" style={{ borderRight: '1px dotted var(--border)', paddingRight: '20px', flex: 1 }}>
-                          <Timer size={20} style={{ margin: '0 auto 8px auto', display: 'block', color: 'var(--accent-recipe)' }} />
-                          <div style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Prep time:</div>
-                          <div style={{ fontSize: '0.85rem' }}>{selectedRecipe.prep_time}</div>
-                        </div>
-                      )}
-                      {selectedRecipe.cook_time && (
-                        <div className="recipe-meta-item" style={{ borderRight: '1px dotted var(--border)', paddingRight: '20px', flex: 1 }}>
-                          <Clock size={20} style={{ margin: '0 auto 8px auto', display: 'block', color: 'var(--accent-recipe)' }} />
-                          <div style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Cook Time:</div>
-                          <div style={{ fontSize: '0.85rem' }}>{selectedRecipe.cook_time}</div>
-                        </div>
-                      )}
-                      {selectedRecipe.servings && (
-                        <div className="recipe-meta-item" style={{ flex: 1 }}>
-                          <Users size={20} style={{ margin: '0 auto 8px auto', display: 'block', color: 'var(--accent-recipe)' }} />
-                          <div style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Servings:</div>
-                          <div style={{ fontSize: '0.85rem' }}>{selectedRecipe.servings}</div>
-                        </div>
-                      )}
+                        </>
+                      ) : null}
                     </div>
 
-                    {/* Recipe Image - cropped to landscape */}
-                    {selectedRecipe.image_url && (
-                      <img
-                        src={selectedRecipe.image_url}
-                        alt={selectedRecipe.name}
-                        className="recipe-image"
-                        style={{ 
-                          width: '100%', 
-                          height: '250px', 
-                          objectFit: 'cover', 
-                          objectPosition: 'center',
-                          marginBottom: '30px',
-                          borderRadius: 'var(--radius-sm)'
-                        }}
-                      />
-                    )}
+                    {/* Right: Meta + Image (page 1 only) + Instructions */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {/* Meta row */}
+                      <div style={{
+                        display: 'flex', justifyContent: 'space-around',
+                        borderBottom: '1px dotted var(--border)',
+                        paddingBottom: 16, marginBottom: 20, textAlign: 'center',
+                      }}>
+                        {selectedRecipe.prep_time && (
+                          <div style={{ borderRight: '1px dotted var(--border)', paddingRight: 20, flex: 1 }}>
+                            <Timer size={18} style={{ margin: '0 auto 6px', display: 'block', color: 'var(--accent-recipe)' }} />
+                            <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text)' }}>Prep</div>
+                            <div style={{ fontSize: '0.78rem', color: 'var(--text-2)' }}>{selectedRecipe.prep_time}</div>
+                          </div>
+                        )}
+                        {selectedRecipe.cook_time && (
+                          <div style={{ borderRight: '1px dotted var(--border)', paddingRight: 20, flex: 1 }}>
+                            <Clock size={18} style={{ margin: '0 auto 6px', display: 'block', color: 'var(--accent-recipe)' }} />
+                            <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text)' }}>Cook</div>
+                            <div style={{ fontSize: '0.78rem', color: 'var(--text-2)' }}>{selectedRecipe.cook_time}</div>
+                          </div>
+                        )}
+                        {selectedRecipe.servings && (
+                          <div style={{ flex: 1 }}>
+                            <Users size={18} style={{ margin: '0 auto 6px', display: 'block', color: 'var(--accent-recipe)' }} />
+                            <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text)' }}>Serves</div>
+                            <div style={{ fontSize: '0.78rem', color: 'var(--text-2)' }}>{selectedRecipe.servings}</div>
+                          </div>
+                        )}
+                      </div>
 
-                    {/* Preparation Instructions */}
-                    <div className="recipe-section">
-                      <h3 className="recipe-section-title" style={{ fontFamily: 'Georgia, serif', fontSize: '1.5rem', marginBottom: '15px' }}>Preparation</h3>
-                      <div className="recipe-text" style={{ lineHeight: '1.6' }}>
+                      {/* Image — page 1 only */}
+                      {currentPage === 1 && selectedRecipe.image_url && (
+                        <img
+                          src={selectedRecipe.image_url}
+                          alt={selectedRecipe.name}
+                          style={{
+                            width: '100%', height: 220,
+                            objectFit: 'cover', objectPosition: 'center',
+                            marginBottom: 24, borderRadius: 'var(--radius-sm)',
+                          }}
+                        />
+                      )}
+
+                      {/* Instructions */}
+                      <h3 style={{
+                        fontFamily: 'Georgia, serif', fontSize: '1.1rem',
+                        marginBottom: 14, color: 'var(--accent-recipe)',
+                        borderBottom: `2px solid var(--accent-recipe)`, paddingBottom: 6,
+                      }}>
+                        Preparation
+                      </h3>
+                      <div style={{ whiteSpace: 'pre-wrap', color: 'var(--text-2)', lineHeight: 1.8, fontSize: '0.875rem' }}>
                         {selectedRecipe.instructions}
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="recipe-pagination">
-                  <button
-                    className="page-btn"
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                  >
-                    Previous
-                  </button>
-                  <span className="page-indicator">
-                    Page {currentPage} of {totalPages}
-                  </span>
-                  <button
-                    className="page-btn"
-                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
-                  >
-                    Next
-                  </button>
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="recipe-empty-state">
-              <UtensilsCrossed size={48} style={{ marginBottom: 16, opacity: 0.5, color: 'var(--text-3)' }} />
-              <p>Select a recipe from the table of contents</p>
-            </div>
-          )}
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <div style={{
+                    display: 'flex', justifyContent: 'center', alignItems: 'center',
+                    gap: 16, padding: '16px 20px', borderTop: '1px solid var(--border)',
+                  }}>
+                    <button
+                      className="btn btn-secondary"
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      Previous
+                    </button>
+                    <span className="muted small">Page {currentPage} of {totalPages}</span>
+                    <button
+                      className="btn btn-secondary"
+                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                    >
+                      Next
+                    </button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div style={{
+                flex: 1, display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center', color: 'var(--text-3)',
+              }}>
+                <UtensilsCrossed size={48} style={{ marginBottom: 16, opacity: 0.4 }} />
+                <p>Select a recipe from the contents</p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -319,12 +366,7 @@ export function RecipeWorkspace({ initialRows }: { initialRows: RecordShape[] })
               </button>
             </div>
 
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                setShowAddModal(false);
-              }}
-            >
+            <form onSubmit={(e) => { e.preventDefault(); setShowAddModal(false); }}>
               <div className="recipe-form-group">
                 <label className="recipe-form-label">Recipe Name</label>
                 <input type="text" className="recipe-form-input" placeholder="e.g., Chocolate Cake" required />
@@ -334,9 +376,7 @@ export function RecipeWorkspace({ initialRows }: { initialRows: RecordShape[] })
                 <label className="recipe-form-label">Category</label>
                 <select className="recipe-form-select">
                   <option value="">Select category...</option>
-                  {categories.map((cat) => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
+                  {categories.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
                   <option value="Breakfast">Breakfast</option>
                   <option value="Lunch">Lunch</option>
                   <option value="Dinner">Dinner</option>
@@ -382,12 +422,8 @@ export function RecipeWorkspace({ initialRows }: { initialRows: RecordShape[] })
               </div>
 
               <div className="recipe-form-actions">
-                <button type="button" className="recipe-btn-cancel" onClick={() => setShowAddModal(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className="recipe-btn-save">
-                  Save Recipe
-                </button>
+                <button type="button" className="recipe-btn-cancel" onClick={() => setShowAddModal(false)}>Cancel</button>
+                <button type="submit" className="recipe-btn-save">Save Recipe</button>
               </div>
             </form>
           </div>
