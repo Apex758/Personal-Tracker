@@ -2,15 +2,13 @@
 
 import { useMemo, useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  ResponsiveContainer, AreaChart, Area,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine,
-} from 'recharts';
+import { ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine } from 'recharts';
 import { AiInsights } from '@/components/ai-insights';
 import { AreaChartCard, StackedAreaChartCard } from '@/components/charts';
 import type { ModuleConfig, RecordShape } from '@/lib/types';
 import { formatMoney, formatNumber, titleCase } from '@/lib/format';
 import { useMonth } from '@/lib/month-context';
+
 
 const MONEY_KEYS = new Set(['amount', 'income', 'expense', 'budget', 'estimated_cost', 'actual_cost', 'target_budget', 'expected_price', 'actual_price', 'expected_income', 'actual_income']);
 const ACCENT_MAP: Record<string, string> = {
@@ -535,7 +533,12 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
         <div style={{ marginBottom: 14 }}>
           <AreaChartCard title={`${module.label} — trend`} data={singleSeriesData} color={accent} height={tableCollapsed ? 480 : undefined} />
         </div>
+      ) : module.slug === 'skills' ? (
+        <div style={{ marginBottom: 14 }}>
+          <SkillsProgressChart rows={displayRows} accent={accent} />
+        </div>
       ) : null}
+
 
       {/* Tab bar */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 14, alignItems: 'center' }}>
@@ -789,6 +792,58 @@ function FinanceChartCard({ data, series, goals, tall = false }: { data: Record<
             ) : null)}
           </AreaChart>
         </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+function SkillsProgressChart({ rows, accent }: { rows: RecordShape[]; accent: string }) {
+  const data = rows.slice(0, 12).map((r) => ({
+    label: String(r.specific_skill ?? '').slice(0, 18) || 'Unnamed',
+    current: Number(r.current_level ?? 0),
+    target: Number(r.target_level ?? 0),
+    hours: Number(r.hours_invested ?? 0),
+  }));
+
+  if (!data.length) return null;
+
+  return (
+    <div className="grid grid-2" style={{ gap: 14 }}>
+      {/* Level: current vs target */}
+      <div className="card">
+        <div className="card-header">
+          <p className="section-title">Current vs Target Level</p>
+        </div>
+        <div style={{ height: 240 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: 40 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#4d5668' }} axisLine={false} tickLine={false} angle={-30} textAnchor="end" />
+              <YAxis domain={[0, 10]} tick={{ fontSize: 11, fill: '#4d5668' }} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={{ background: '#141820', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, fontSize: 12 }} />
+              <Bar dataKey="current" name="Current" fill={accent} fillOpacity={0.85} radius={[4, 4, 0, 0]} maxBarSize={28} />
+              <Bar dataKey="target" name="Target" fill="rgba(255,255,255,0.12)" radius={[4, 4, 0, 0]} maxBarSize={28} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Hours invested per skill */}
+      <div className="card">
+        <div className="card-header">
+          <p className="section-title">Hours Invested</p>
+        </div>
+        <div style={{ height: 240 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: 40 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#4d5668' }} axisLine={false} tickLine={false} angle={-30} textAnchor="end" />
+              <YAxis tick={{ fontSize: 11, fill: '#4d5668' }} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={{ background: '#141820', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, fontSize: 12 }} />
+              <Bar dataKey="hours" name="Hours" fill="#38bdf8" fillOpacity={0.85} radius={[4, 4, 0, 0]} maxBarSize={28} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
       </div>
     </div>
   );
