@@ -39,6 +39,24 @@ const FINANCE_NATURE_COLORS: Record<string, string> = {
   'Emergency Fund': '#38bdf8',
 };
 
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+// Auto-populate derived fields before saving
+function autoEnrich(slug: string, payload: RecordShape): RecordShape {
+  if (slug === 'finance' && payload.date) {
+    const d = new Date(String(payload.date));
+    if (!isNaN(d.getTime())) {
+      payload = { ...payload, month: MONTHS[d.getMonth()] };
+    }
+  }
+  return payload;
+}
+
+// Fields hidden from the Add Row form (auto-derived from other fields)
+const HIDDEN_FORM_KEYS: Record<string, Set<string>> = {
+  finance: new Set(['month']),
+};
+
 type EditState = Record<string, string | number | null>;
 
 export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig; initialRows: RecordShape[] }) {
@@ -90,11 +108,22 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
     });
     const categories = Array.from(categorySet);
 
+    // For finance (monthly view), scaffold all 12 months so the chart always spans the full year
+    const isFinance = module.slug === 'finance';
+    const MONTHS_12 = ['2026-01','2026-02','2026-03','2026-04','2026-05','2026-06',
+                       '2026-07','2026-08','2026-09','2026-10','2026-11','2026-12'];
+
     // Group by YYYY-MM from the date column — skip rows with no date
     const map = new Map<string, Record<string, number>>();
+
+    // Pre-seed the map with all months so gaps show as 0, not missing
+    if (isFinance) {
+      MONTHS_12.forEach((m) => map.set(m, {}));
+    }
+
     rows.forEach((r) => {
       const rawDate = String(r[dateCol?.key ?? 'date'] ?? '');
-      if (!rawDate || rawDate === 'null') return; // skip dateless rows
+      if (!rawDate || rawDate === 'null') return;
       const label = rawDate.length >= 7 ? rawDate.slice(0, 7) : rawDate;
       const cat = String(r[groupBy] ?? '').trim() || 'Other';
       const val = Number(r[valueKey] || 0);
@@ -170,10 +199,11 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
   }
 
   async function saveRow() {
+    const enriched = autoEnrich(module.slug, form);
     const res = await fetch(`/api/records/${module.slug}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
+      body: JSON.stringify(enriched),
     });
     const data = await res.json();
     if (!res.ok) { showMsg(data.error || 'Save failed.', false); return; }
@@ -379,7 +409,9 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
             <p className="section-title">Add a new record</p>
           </div>
           <div className="form-grid">
-            {module.columns.map((col) => (
+            {module.columns
+              .filter((col) => !HIDDEN_FORM_KEYS[module.slug]?.has(col.key))
+              .map((col) => (
               <div key={col.key} className={`field${col.type === 'textarea' ? ' span-2' : ''}`}>
                 <label>{col.label}</label>
                 {col.type === 'select' ? (

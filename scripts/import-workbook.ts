@@ -1,3 +1,5 @@
+import { config } from 'dotenv';
+config({ path: '.env.local' });  
 import fs from 'node:fs';
 import path from 'node:path';
 import * as XLSX from 'xlsx';

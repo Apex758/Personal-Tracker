@@ -211,6 +211,17 @@ export function PieChartCard({ title, data }: { title: string; data: ChartPoint[
   );
 }
 
+const SHORT_MONTHS: Record<string, string> = {
+  '01':'Jan','02':'Feb','03':'Mar','04':'Apr','05':'May','06':'Jun',
+  '07':'Jul','08':'Aug','09':'Sep','10':'Oct','11':'Nov','12':'Dec',
+};
+function fmtMonthTick(val: string) {
+  // YYYY-MM → "Jan", daily dates → keep as-is but shorten
+  if (/^\d{4}-\d{2}$/.test(val)) return SHORT_MONTHS[val.slice(5)] ?? val;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val.slice(8); // day number
+  return val;
+}
+
 /* ─── Multi-Series Stacked Area Chart ─── */
 export function StackedAreaChartCard({
   title,
@@ -245,6 +256,7 @@ export function StackedAreaChartCard({
               tick={{ fontSize: 11, fill: '#4d5668' }}
               axisLine={false}
               tickLine={false}
+              tickFormatter={fmtMonthTick}
             />
             <YAxis tick={{ fontSize: 11, fill: '#4d5668' }} axisLine={false} tickLine={false} />
             <Tooltip
@@ -252,7 +264,7 @@ export function StackedAreaChartCard({
                 if (!active || !payload?.length) return null;
                 return (
                   <div style={{ ...tooltipStyle.contentStyle, padding: '10px 14px', minWidth: 140 }}>
-                    <p style={{ color: '#f0f4ff', fontWeight: 700, marginBottom: 6, fontSize: 12 }}>{label}</p>
+                    <p style={{ color: '#f0f4ff', fontWeight: 700, marginBottom: 6, fontSize: 12 }}>{fmtMonthTick(String(label))}</p>
                     {payload.map((p: any) => (
                       <div key={p.dataKey} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
                         <span style={{ width: 8, height: 8, borderRadius: '50%', background: p.color, flexShrink: 0, display: 'inline-block' }} />
@@ -276,10 +288,11 @@ export function StackedAreaChartCard({
                 dataKey={s.key}
                 name={s.label}
                 stroke={s.color}
-                strokeWidth={1.8}
+                strokeWidth={2}
                 fill={`url(#sg-${s.key})`}
                 dot={false}
                 activeDot={{ r: 4, fill: s.color, strokeWidth: 0 }}
+                connectNulls
               />
             ))}
           </AreaChart>
