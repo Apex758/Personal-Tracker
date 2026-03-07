@@ -343,7 +343,7 @@ export function RecipeWorkspace({ initialRows }: { initialRows: RecordShape[] })
       if (newRecipe.category) setExpandedCategories((prev) => new Set([...prev, newRecipe.category]));
       try { await fetch('/api/records/recipe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(draft) }); } catch {}
     } else if (mode === 'edit' && selectedId) {
-      setRecipes((prev) => prev.map((r) => r.id === selectedId ? { ...draft, id: selectedId } : r));
+      setRecipes((prev) => prev.map((r) => r.id === selectedId ? { ...draft, id: selectedId } as Recipe : r));
       try { await fetch(`/api/records/recipe/${selectedId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(draft) }); } catch {}
     }
     setMode('view');
