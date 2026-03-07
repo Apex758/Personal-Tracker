@@ -66,9 +66,7 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
   const router = useRouter();
 
   // Finance month/year selector
-  const now = new Date();
-  const [selectedMonth, setSelectedMonth] = useState(MONTHS[now.getMonth()]);
-  const [selectedYear, setSelectedYear] = useState(now.getFullYear());
+  const { selectedMonth, selectedYear, setSelectedMonth, setSelectedYear, MONTHS, YEAR_OPTIONS } = useMonth();
 
   // Goals are stored per month+year: key = `{year}_{month}_{nature}`
   const [allGoals, setAllGoals] = useState<Record<string, number>>({});
@@ -328,20 +326,18 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
 
   // Finance: filter rows by selected month AND year for table + stat cards
   const displayRows = useMemo(() => {
-    if (module.slug !== 'finance') return rows;
+    const dateCol = module.columns.find((c) => c.type === 'date');
+    if (!dateCol) return rows;
     return rows.filter((r) => {
-      if (String(r.month ?? '') !== selectedMonth) return false;
-      // If the row has a date, verify the year matches
-      const dateStr = String(r.date ?? '');
-      if (dateStr && dateStr.length >= 4) {
-        return Number(dateStr.slice(0, 4)) === selectedYear;
-      }
-      return true; // no date field — include it
+      const dateStr = String(r[dateCol.key] ?? '');
+      if (!dateStr || dateStr === 'null') return true;
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return true;
+      return d.getFullYear() === selectedYear &&
+        d.toLocaleString('default', { month: 'long' }) === selectedMonth;
     });
-  }, [rows, module.slug, selectedMonth, selectedYear]);
-
-  const YEAR_OPTIONS = [2024, 2025, 2026, 2027];
-
+  }, [rows, module, selectedMonth, selectedYear]);
+  
   return (
     <div className="page">
       {/* Header */}
@@ -352,7 +348,7 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
           <p className="muted small" style={{ maxWidth: 440, marginTop: 4 }}>{module.description}</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {module.slug === 'finance' && (
+          {module.columns.some((c) => c.type === 'date') && (
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <select
                 value={selectedMonth}
