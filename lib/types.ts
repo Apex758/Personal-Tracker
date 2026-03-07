@@ -5,7 +5,8 @@ export type ModuleSlug =
   | 'skills'
   | 'work'
   | 'travel'
-  | 'wishlist';
+  | 'wishlist'
+  | 'recipe';
 
 export type ModuleConfig = {
   slug: ModuleSlug;

@@ -17,6 +17,7 @@ import {
   X,
   Sun,
   Moon,
+  ChefHat,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -28,6 +29,7 @@ const MODULE_ICONS: Record<string, LucideIcon> = {
   work:      Briefcase,
   travel:    Plane,
   wishlist:  Star,
+  recipe:    ChefHat,
 };
 
 export function Shell({ children }: { children: React.ReactNode }) {

@@ -148,6 +148,26 @@ export const modules: ModuleConfig[] = [
       { key: 'bought_date', label: 'Bought Date', type: 'date' },
       { key: 'notes', label: 'Notes', type: 'textarea' }
     ]
+  },
+  {
+    slug: 'recipe',
+    label: 'Recipe Book',
+    description: 'Your personal cookbook with all your favorite recipes.',
+    table: 'recipe_entries',
+    workbookSheet: 'Recipe Book',
+    primaryField: 'name',
+    accent: 'var(--accent-recipe)',
+    columns: [
+      { key: 'name', label: 'Recipe Name', type: 'text' },
+      { key: 'category', label: 'Category', type: 'text' },
+      { key: 'image_url', label: 'Image URL', type: 'text' },
+      { key: 'prep_time', label: 'Prep Time', type: 'text' },
+      { key: 'cook_time', label: 'Cook Time', type: 'text' },
+      { key: 'servings', label: 'Servings', type: 'number' },
+      { key: 'ingredients', label: 'Ingredients', type: 'textarea' },
+      { key: 'instructions', label: 'Instructions', type: 'textarea' },
+      { key: 'notes', label: 'Notes', type: 'textarea' }
+    ]
   }
 ];
 
