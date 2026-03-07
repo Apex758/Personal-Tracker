@@ -5,6 +5,7 @@ import { YearlySummary } from '@/components/yearly-summary';
 import { getDashboardData } from '@/lib/data';
 import { formatMoney, formatNumber } from '@/lib/format';
 import { modules } from '@/lib/modules';
+export const dynamic = 'force-dynamic';
 
 const MODULE_ACCENTS: Record<string, string> = {
   finance: '#00d4aa',

@@ -2,6 +2,7 @@ export type ModuleSlug =
   | 'finance'
   | 'grocery'
   | 'lifestyle'
+  | 'gym'
   | 'skills'
   | 'work'
   | 'travel'

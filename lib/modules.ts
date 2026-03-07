@@ -13,7 +13,12 @@ export const modules: ModuleConfig[] = [
       { key: 'date', label: 'Date', type: 'date' },
       { key: 'financial_nature', label: 'Financial Nature', type: 'select', options: ['Income', 'Expense', 'Savings', 'Frass', 'Debt', 'Emergency Fund'] },
       { key: 'account_type', label: 'Account Type', type: 'text' },
-      { key: 'category', label: 'Category', type: 'text' },
+      { key: 'category', label: 'Category', type: 'select', options: [
+        'Groceries', 'Eating Out', 'Transportation', 'Utilities', 'Rent',
+        'Gym Membership', 'Subscriptions', 'Healthcare', 'Education',
+        'Entertainment', 'Clothing', 'Personal Care', 'Savings Transfer',
+        'Debt Payment', 'Other'
+      ] },
       { key: 'payment_method', label: 'Payment Method', type: 'text' },
       { key: 'project', label: 'Project', type: 'text' },
       { key: 'amount', label: 'Amount', type: 'number' },
