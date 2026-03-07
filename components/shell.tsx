@@ -12,6 +12,7 @@ import {
   Briefcase,
   Plane,
   Star,
+  ShoppingCart,
   Menu,
   X,
   type LucideIcon,
@@ -19,6 +20,7 @@ import {
 
 const MODULE_ICONS: Record<string, LucideIcon> = {
   finance:   Wallet,
+  grocery:   ShoppingCart,
   lifestyle: Leaf,
   skills:    Target,
   work:      Briefcase,
@@ -71,7 +73,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
         onMouseEnter={handleSidebarEnter}
         onMouseLeave={handleSidebarLeave}
       >
-        {/* Brand */}
         <div className="sidebar-top">
           <div className="sidebar-brand">
             <div className="brand-icon">D</div>
@@ -87,15 +88,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
           )}
         </div>
 
-        {/* Nav */}
         <nav className="nav-section">
           <div className="nav-label">Overview</div>
-          <NavItem
-            href="/"
-            active={pathname === '/'}
-            icon={<LayoutDashboard size={20} strokeWidth={1.8} />}
-            label="Dashboard"
-          />
+          <NavItem href="/" active={pathname === '/'} icon={<LayoutDashboard size={20} strokeWidth={1.8} />} label="Dashboard" />
 
           <div className="nav-label" style={{ marginTop: 10 }}>Modules</div>
           {modules.map((module) => {
@@ -112,7 +107,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
-        {/* Footer */}
         <div className="sidebar-footer">
           <div className="sidebar-status">
             <span className="status-dot" />
@@ -141,17 +135,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function NavItem({
-  href,
-  active,
-  icon,
-  label,
-}: {
-  href: string;
-  active: boolean;
-  icon: React.ReactNode;
-  label: string;
-}) {
+function NavItem({ href, active, icon, label }: { href: string; active: boolean; icon: React.ReactNode; label: string }) {
   return (
     <Link href={href} className={`nav-link${active ? ' active' : ''}`}>
       <span className="nav-icon">{icon}</span>

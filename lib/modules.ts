@@ -22,6 +22,22 @@ export const modules: ModuleConfig[] = [
     ]
   },
   {
+    slug: 'grocery',
+    label: 'Grocery Budget',
+    description: 'Plan and track grocery spend by category. Push totals to Finance.',
+    table: 'grocery_entries',
+    workbookSheet: 'Grocery Budget',
+    primaryField: 'item',
+    accent: '#4ade80',
+    columns: [
+      { key: 'category', label: 'Category', type: 'select', options: ['Protein', 'Carbs', 'Fats', 'Vegetables & Fruit', 'Flavor', 'Toiletries', 'Extra'] },
+      { key: 'item', label: 'Item', type: 'text' },
+      { key: 'goal_amount', label: 'Goal Amount', type: 'number' },
+      { key: 'actual_amount', label: 'Actual Amount', type: 'number' },
+      { key: 'notes', label: 'Notes', type: 'textarea' },
+    ]
+  },
+  {
     slug: 'lifestyle',
     label: 'Body & Lifestyle',
     description: 'Track habits, care routines, wellness notes, and consistency.',
