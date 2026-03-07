@@ -31,6 +31,24 @@ export async function getRows(slug: ModuleSlug) {
   return data as RecordShape[];
 }
 
+const MONTH_ORDER = [
+  'January','February','March','April','May','June',
+  'July','August','September','October','November','December',
+];
+
+const FINANCE_NATURES = ['Income','Expense','Savings','Debt','Emergency Fund'] as const;
+
+export type YearlySummaryRow = {
+  month: string;
+  Income: number;
+  Expense: number;
+  Savings: number;
+  Frass: number;
+  Debt: number;
+  'Emergency Fund': number;
+  net: number;
+};
+
 export async function getDashboardData() {
   const [finance, lifestyle, skills, work, travel, wishlist] = await Promise.all(
     modules.map((module) => getRows(module.slug)),
@@ -41,14 +59,32 @@ export async function getDashboardData() {
   let expense = 0;
   let savings = 0;
 
+  // Yearly summary: keyed by month name
+  const yearlyMap = new Map<string, Record<string, number>>();
+  MONTH_ORDER.forEach((m) => yearlyMap.set(m, { Income: 0, Expense: 0, Savings: 0, Frass: 0, Debt: 0, 'Emergency Fund': 0 }));
+
   finance.forEach((row) => {
     const month = safeString(row.month) || 'Unknown';
     const amount = safeNumber(row.amount);
-    const nature = safeString(row.financial_nature).toLowerCase();
+    const nature = safeString(row.financial_nature).trim();
     financeByMonthMap.set(month, (financeByMonthMap.get(month) ?? 0) + amount);
     if (nature === 'income') income += amount;
     if (nature === 'expense' || nature === 'frass' || nature === 'debt') expense += amount;
     if (nature === 'savings' || nature === 'emergency fund') savings += amount;
+
+    if (yearlyMap.has(month)) {
+      const entry = yearlyMap.get(month)!;
+      const key = FINANCE_NATURES.find(
+        (n) => n.toLowerCase() === nature.toLowerCase()
+      );
+      if (key) entry[key] = (entry[key] ?? 0) + amount;
+    }
+  });
+
+  const yearlySummary: YearlySummaryRow[] = MONTH_ORDER.map((month) => {
+    const e = yearlyMap.get(month)!;
+    const net = e['Income'] - e['Expense'] - e['Debt'] - e['Frass'];
+    return { month, Income: e['Income'], Expense: e['Expense'], Savings: e['Savings'], Frass: e['Frass'], Debt: e['Debt'], 'Emergency Fund': e['Emergency Fund'], net } as YearlySummaryRow;
   });
 
   const workStatusMap = new Map<string, number>();
@@ -107,5 +143,6 @@ export async function getDashboardData() {
       travelStatuses: Array.from(travelStatusMap.entries()).map(([label, value]) => ({ label, value })),
       wishlistPriorities: Array.from(wishlistPriorityMap.entries()).map(([label, value]) => ({ label, value })),
     },
+    yearlySummary,
   };
 }

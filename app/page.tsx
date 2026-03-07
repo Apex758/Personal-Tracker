@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { AreaChartCard, PieChartCard, RadialChartCard, ComposedChartCard } from '@/components/charts';
 import { StatCard } from '@/components/stat-card';
+import { YearlySummary } from '@/components/yearly-summary';
 import { getDashboardData } from '@/lib/data';
 import { formatMoney, formatNumber } from '@/lib/format';
 import { modules } from '@/lib/modules';
@@ -53,6 +54,11 @@ export default async function DashboardPage() {
         <RadialChartCard title="Lifestyle Habits" data={data.charts.lifestyleHabits} />
         <PieChartCard title="Travel Status" data={data.charts.travelStatuses} />
         <ComposedChartCard title="Wishlist Priorities" data={data.charts.wishlistPriorities} />
+      </div>
+
+      {/* Yearly Summary */}
+      <div style={{ marginBottom: 14 }}>
+        <YearlySummary data={data.yearlySummary} />
       </div>
 
       {/* Modules grid */}

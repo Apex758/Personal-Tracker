@@ -36,7 +36,6 @@ const FINANCE_NATURE_COLORS: Record<string, string> = {
   Income:           '#00d4aa',
   Expense:          '#f06292',
   Savings:          '#7c6ef7',
-  Frass:            '#f5a623',
   Debt:             '#ef4444',
   'Emergency Fund': '#38bdf8',
 };
@@ -306,6 +305,22 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
 
   const numericTotals = Object.entries(totals).slice(0, 4);
 
+  // Persist collapsed state per module
+  const collapsedKey = `table_collapsed_${module.slug}`;
+  const [tableCollapsed, setTableCollapsed] = useState(false);
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(collapsedKey);
+      if (saved !== null) setTableCollapsed(saved === 'true');
+    } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [collapsedKey]);
+
+  function toggleCollapsed(val: boolean) {
+    setTableCollapsed(val);
+    try { localStorage.setItem(collapsedKey, String(val)); } catch {}
+  }
+
   // Finance: filter rows by selected month for table + stat cards
   const displayRows = useMemo(() => {
     if (module.slug !== 'finance') return rows;
@@ -383,6 +398,7 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
             data={pivotData}
             series={pivotSeries}
             goals={financeGoals}
+            tall={tableCollapsed}
           />
         </div>
       ) : pivotCfg && pivotData.length > 0 ? (
@@ -391,6 +407,7 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
             title={`${module.label} — by month`}
             data={pivotData}
             series={pivotSeries}
+            height={tableCollapsed ? 480 : undefined}
           />
         </div>
       ) : multiSeriesData.length > 1 ? (
@@ -399,6 +416,7 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
             title={`${module.label} — all series by date`}
             data={multiSeriesData}
             series={multiSeries}
+            height={tableCollapsed ? 480 : undefined}
           />
         </div>
       ) : singleSeriesData.length > 1 ? (
@@ -407,13 +425,15 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
             title={`${module.label} — trend`}
             data={singleSeriesData}
             color={accent}
+            height={tableCollapsed ? 480 : undefined}
           />
         </div>
       ) : null}
 
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
-        {(['records', 'add', 'ai'] as const).map((tab) => (
+      {/* Tabs + collapse control */}
+      {/* Always-visible tab bar */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 14, alignItems: 'center' }}>
+        {!tableCollapsed && (['records', 'add', 'ai'] as const).map((tab) => (
           <button
             key={tab}
             className={activeTab === tab ? 'btn btn-primary' : 'btn btn-secondary'}
@@ -423,12 +443,35 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
             {tab === 'records' ? `Records (${module.slug === 'finance' ? displayRows.length : rows.length})` : tab === 'add' ? 'Add Row' : 'AI Insights'}
           </button>
         ))}
-        {message && (
-          <span className={`msg ${message.ok ? 'msg-ok' : 'msg-err'}`} style={{ marginLeft: 'auto', alignSelf: 'center' }}>
+        <button
+          onClick={() => toggleCollapsed(!tableCollapsed)}
+          style={{
+            marginLeft: tableCollapsed ? 'auto' : 'auto',
+            display: 'inline-flex', alignItems: 'center', gap: 5,
+            padding: '6px 14px', borderRadius: 99,
+            border: '1px solid var(--border)', background: 'var(--surface-2)',
+            color: 'var(--text-3)', fontSize: '0.8rem', cursor: 'pointer',
+            transition: 'all 0.15s',
+          }}
+        >
+          {tableCollapsed ? '↓ Expand table' : '↑ Collapse table'}
+        </button>
+        {message && !tableCollapsed && (
+          <span className={`msg ${message.ok ? 'msg-ok' : 'msg-err'}`} style={{ alignSelf: 'center' }}>
             {message.text}
           </span>
         )}
       </div>
+
+      {/* Collapsible content — smooth height + fade */}
+      <div style={{
+        overflow: 'hidden',
+        maxHeight: tableCollapsed ? 0 : '2000px',
+        opacity: tableCollapsed ? 0 : 1,
+        transition: 'max-height 0.35s ease, opacity 0.25s ease',
+        pointerEvents: tableCollapsed ? 'none' : undefined,
+      }}>
+        <>
 
       {/* Records Table */}
       {activeTab === 'records' && (
@@ -524,6 +567,8 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
 
       {/* AI Insights */}
       {activeTab === 'ai' && <AiInsights slug={module.slug} rows={rows} />}
+        </>
+      </div>
     </div>
   );
 }
@@ -553,10 +598,12 @@ function FinanceChartCard({
   data,
   series,
   goals,
+  tall = false,
 }: {
   data: Record<string, unknown>[];
   series: { key: string; label: string; color: string }[];
   goals: Record<string, number>;
+  tall?: boolean;
 }) {
   const [activeSeries, setActiveSeries] = useState<Set<string>>(() => new Set(series.map((s) => s.key)));
   const [activeGoals, setActiveGoals] = useState<Set<string>>(new Set());
@@ -648,7 +695,7 @@ function FinanceChartCard({
         </div>{/* end right column */}
       </div>
 
-      <div style={{ height: 300 }}>
+      <div style={{ height: tall ? 480 : 300, transition: 'height 0.3s ease' }}>
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
             <defs>
@@ -740,12 +787,12 @@ function StatMini({ label, value, accent }: { label: string; value: string; acce
 
 // ─── Finance-specific natures with goal direction logic ───────────────────────
 const FINANCE_NATURES_LIST = [
-  { nature: 'Income',         label: 'Income',         color: '#00d4aa', lowerIsBetter: false },
-  { nature: 'Expense',        label: 'Expenses',        color: '#f06292', lowerIsBetter: true  },
-  { nature: 'Savings',        label: 'Savings',         color: '#7c6ef7', lowerIsBetter: false },
-  { nature: 'Debt',           label: 'Debt',            color: '#ef4444', lowerIsBetter: true  },
-  { nature: 'Emergency Fund', label: 'Emergency Fund',  color: '#38bdf8', lowerIsBetter: false },
-  { nature: 'Frass',          label: 'Monthly Goals',   color: '#f5a623', lowerIsBetter: false },
+  { nature: 'Income',         label: 'Income',        color: '#00d4aa', lowerIsBetter: false },
+  { nature: 'Expense',        label: 'Expenses',       color: '#f06292', lowerIsBetter: true  },
+  { nature: 'Savings',        label: 'Savings',        color: '#7c6ef7', lowerIsBetter: false },
+  { nature: 'Frass',          label: 'Frass',          color: '#f5a623', lowerIsBetter: true  },
+  { nature: 'Debt',           label: 'Debt',           color: '#ef4444', lowerIsBetter: true  },
+  { nature: 'Emergency Fund', label: 'Emergency Fund', color: '#38bdf8', lowerIsBetter: false },
 ];
 function FinanceStatCards({
   rows,

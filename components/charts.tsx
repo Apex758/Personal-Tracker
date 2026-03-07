@@ -36,13 +36,24 @@ const tooltipStyle = {
 };
 
 /* ─── Area Chart ─── */
-export function AreaChartCard({ title, data, color = TEAL }: { title: string; data: ChartPoint[]; color?: string }) {
+export function AreaChartCard({
+  title,
+  data,
+  color = TEAL,
+  height,
+}: {
+  title: string;
+  data: ChartPoint[];
+  color?: string;
+  height?: number;
+}) {
+  const chartH = height ?? 240;
   return (
     <div className="card">
       <div className="card-header">
         <p className="section-title">{title}</p>
       </div>
-      <div className="chart-wrap">
+      <div style={{ height: chartH, transition: 'height 0.3s ease' }}>
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
             <defs>
@@ -216,9 +227,8 @@ const SHORT_MONTHS: Record<string, string> = {
   '07':'Jul','08':'Aug','09':'Sep','10':'Oct','11':'Nov','12':'Dec',
 };
 function fmtMonthTick(val: string) {
-  // YYYY-MM → "Jan", daily dates → keep as-is but shorten
   if (/^\d{4}-\d{2}$/.test(val)) return SHORT_MONTHS[val.slice(5)] ?? val;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val.slice(8); // day number
+  if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val.slice(8);
   return val;
 }
 
@@ -227,19 +237,22 @@ export function StackedAreaChartCard({
   title,
   data,
   series,
+  height,
 }: {
   title: string;
   data: Record<string, unknown>[];
   series: { key: string; label: string; color: string }[];
+  height?: number;
 }) {
   if (!data.length || !series.length) return null;
+  const chartH = height ?? 300;
 
   return (
     <div className="card">
       <div className="card-header">
         <p className="section-title">{title}</p>
       </div>
-      <div className="chart-wrap-lg">
+      <div style={{ height: chartH, transition: 'height 0.3s ease' }}>
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
             <defs>
@@ -301,6 +314,7 @@ export function StackedAreaChartCard({
     </div>
   );
 }
+
 export function ComposedChartCard({ title, data }: { title: string; data: ChartPoint[] }) {
   return (
     <div className="card">
