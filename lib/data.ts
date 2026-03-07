@@ -36,7 +36,7 @@ const MONTH_ORDER = [
   'July','August','September','October','November','December',
 ];
 
-const FINANCE_NATURES = ['Income','Expense','Savings','Debt','Emergency Fund'] as const;
+const FINANCE_NATURES = ['Income','Expense','Savings','Frass','Debt','Emergency Fund'] as const;
 
 export type YearlySummaryRow = {
   month: string;
@@ -67,10 +67,11 @@ export async function getDashboardData() {
     const month = safeString(row.month) || 'Unknown';
     const amount = safeNumber(row.amount);
     const nature = safeString(row.financial_nature).trim();
+    const natureLower = nature.toLowerCase();
     financeByMonthMap.set(month, (financeByMonthMap.get(month) ?? 0) + amount);
-    if (nature === 'income') income += amount;
-    if (nature === 'expense' || nature === 'frass' || nature === 'debt') expense += amount;
-    if (nature === 'savings' || nature === 'emergency fund') savings += amount;
+    if (natureLower === 'income') income += amount;
+    if (natureLower === 'expense' || natureLower === 'frass' || natureLower === 'debt') expense += amount;
+    if (natureLower === 'savings' || natureLower === 'emergency fund') savings += amount;
 
     if (yearlyMap.has(month)) {
       const entry = yearlyMap.get(month)!;

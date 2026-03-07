@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState, useCallback, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   ResponsiveContainer, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine,
@@ -36,6 +37,7 @@ const FINANCE_NATURE_COLORS: Record<string, string> = {
   Income:           '#00d4aa',
   Expense:          '#f06292',
   Savings:          '#7c6ef7',
+  Frass:            '#f5a623',
   Debt:             '#ef4444',
   'Emergency Fund': '#38bdf8',
 };
@@ -60,6 +62,7 @@ type EditState = Record<string, string | number | null>;
 
 export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig; initialRows: RecordShape[] }) {
   const [rows, setRows] = useState<RecordShape[]>(initialRows);
+  const router = useRouter();
 
   // Finance month/year selector
   const now = new Date();
@@ -222,6 +225,7 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
     const res = await fetch(`/api/records/${module.slug}`);
     const data = await res.json();
     setRows(data.rows || []);
+    router.refresh(); // re-renders server components (dashboard stats)
   }
 
   function showMsg(text: string, ok: boolean) {
@@ -267,7 +271,7 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
       delete payload.id;
       delete payload.created_at;
       delete payload.updated_at;
-      const res = await fetch(`/api/records/${module.table}/${editingId}`, {
+      const res = await fetch(`/api/records/${module.slug}/${editingId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -321,11 +325,19 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
     try { localStorage.setItem(collapsedKey, String(val)); } catch {}
   }
 
-  // Finance: filter rows by selected month for table + stat cards
+  // Finance: filter rows by selected month AND year for table + stat cards
   const displayRows = useMemo(() => {
     if (module.slug !== 'finance') return rows;
-    return rows.filter((r) => String(r.month ?? '') === selectedMonth);
-  }, [rows, module.slug, selectedMonth]);
+    return rows.filter((r) => {
+      if (String(r.month ?? '') !== selectedMonth) return false;
+      // If the row has a date, verify the year matches
+      const dateStr = String(r.date ?? '');
+      if (dateStr && dateStr.length >= 4) {
+        return Number(dateStr.slice(0, 4)) === selectedYear;
+      }
+      return true; // no date field — include it
+    });
+  }, [rows, module.slug, selectedMonth, selectedYear]);
 
   const YEAR_OPTIONS = [2024, 2025, 2026, 2027];
 

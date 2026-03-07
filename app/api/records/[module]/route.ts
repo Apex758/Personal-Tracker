@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { getModule } from '@/lib/modules';
 import { getRows } from '@/lib/data';
@@ -44,6 +45,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { error } = await supabase.from(config.table).insert(cleaned);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
+  revalidatePath('/');
+  revalidatePath(`/module/${config.slug}`);
   return NextResponse.json({ ok: true });
 }
 
@@ -66,5 +69,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const { error } = await supabase.from(config.table).delete().eq('id', id);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
+  revalidatePath('/');
+  revalidatePath(`/module/${config.slug}`);
   return NextResponse.json({ ok: true });
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { revalidatePath } from 'next/cache';
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -19,5 +20,7 @@ export async function PATCH(
   const body = await req.json();
   const { data, error } = await supabase.from(table).update(body).eq('id', id).select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  revalidatePath('/');
+  revalidatePath(`/module/${table}`);
   return NextResponse.json({ data });
 }
