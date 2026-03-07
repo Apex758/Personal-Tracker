@@ -61,14 +61,141 @@ const HIDDEN_FORM_KEYS: Record<string, Set<string>> = {
 
 type EditState = Record<string, string | number | null>;
 
+// ─── Lifestyle inline checkbox row ───────────────────────────────────────────
+function LifestyleInlineAdd({
+  module,
+  accent,
+  onSaved,
+}: {
+  module: ModuleConfig;
+  accent: string;
+  onSaved: () => void;
+}) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [checks, setChecks] = useState<Record<string, boolean>>({});
+  const [date, setDate] = useState(today);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
+
+  const numCols = module.columns.filter((c) => c.type === 'number');
+  const noteCols = module.columns.filter((c) => c.type === 'textarea');
+
+  function toggle(key: string) {
+    setChecks((p) => ({ ...p, [key]: !p[key] }));
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    const payload: RecordShape = { date };
+    numCols.forEach((c) => { payload[c.key] = checks[c.key] ? 1 : null; });
+    noteCols.forEach((c) => { payload[c.key] = null; });
+
+    const res = await fetch(`/api/records/${module.slug}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    setSaving(false);
+    if (!res.ok) { setMsg({ text: data.error || 'Save failed.', ok: false }); return; }
+    setChecks({});
+    setDate(today);
+    setMsg({ text: 'Row added ✓', ok: true });
+    setTimeout(() => setMsg(null), 2500);
+    onSaved();
+  }
+
+  return (
+    <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+      <div style={{ padding: '14px 18px 10px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <span className="eyebrow">Add today's entry</span>
+        {msg && (
+          <span className={`msg ${msg.ok ? 'msg-ok' : 'msg-err'}`}>{msg.text}</span>
+        )}
+      </div>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+          <thead>
+            <tr>
+              <th style={{ padding: '10px 14px', textAlign: 'left', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-3)', background: 'var(--surface-2)', whiteSpace: 'nowrap', borderBottom: '1px solid var(--border)' }}>
+                Date
+              </th>
+              {numCols.map((col) => (
+                <th key={col.key} style={{ padding: '10px 10px', textAlign: 'center', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-3)', background: 'var(--surface-2)', whiteSpace: 'nowrap', borderBottom: '1px solid var(--border)' }}>
+                  {col.label}
+                </th>
+              ))}
+              <th style={{ padding: '10px 14px', background: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }} />
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              {/* Date cell */}
+              <td style={{ padding: '10px 14px', borderBottom: 'none', verticalAlign: 'middle' }}>
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  style={{
+                    padding: '6px 10px',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-xs)',
+                    background: 'var(--surface-2)',
+                    color: 'var(--text)',
+                    fontSize: '0.82rem',
+                    cursor: 'pointer',
+                    outline: 'none',
+                  }}
+                  onFocus={(e) => (e.target.style.borderColor = accent)}
+                  onBlur={(e) => (e.target.style.borderColor = 'var(--border)')}
+                />
+              </td>
+
+              {/* Checkbox cells */}
+              {numCols.map((col) => (
+                <td key={col.key} style={{ padding: '10px', textAlign: 'center', verticalAlign: 'middle', borderBottom: 'none' }}>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={!!checks[col.key]}
+                      onChange={() => toggle(col.key)}
+                      style={{
+                        width: 18,
+                        height: 18,
+                        borderRadius: 3,
+                        accentColor: accent,
+                        cursor: 'pointer',
+                      }}
+                    />
+                  </label>
+                </td>
+              ))}
+
+              {/* Save button */}
+              <td style={{ padding: '10px 14px', verticalAlign: 'middle', borderBottom: 'none', whiteSpace: 'nowrap' }}>
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="btn btn-primary"
+                  style={{ background: accent, borderColor: accent, color: '#000', padding: '7px 18px', fontSize: '0.82rem' }}
+                >
+                  {saving ? '…' : 'Save'}
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig; initialRows: RecordShape[] }) {
   const [rows, setRows] = useState<RecordShape[]>(initialRows);
   const router = useRouter();
 
-  // Finance month/year selector
   const { selectedMonth, selectedYear, setSelectedMonth, setSelectedYear, MONTHS, YEAR_OPTIONS } = useMonth();
 
-  // Goals are stored per month+year: key = `{year}_{month}_{nature}`
   const [allGoals, setAllGoals] = useState<Record<string, number>>({});
   useEffect(() => {
     try {
@@ -99,7 +226,6 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
     Object.fromEntries(module.columns.map((col) => [col.key, ''])),
   );
 
-  // When month/year changes on finance, update the date field default
   useEffect(() => {
     if (module.slug !== 'finance') return;
     const monthIndex = MONTHS.indexOf(selectedMonth);
@@ -107,6 +233,7 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
     const defaultDate = `${selectedYear}-${pad}-01`;
     setForm((f) => ({ ...f, date: defaultDate }));
   }, [selectedMonth, selectedYear, module.slug]);
+
   const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<EditState>({});
@@ -181,7 +308,6 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
     });
 
     const sorted = Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
-
     const data = sorted.map(([label, vals]) => ({ label, ...vals }));
     const series = categories.map((cat, i) => ({
       key: cat,
@@ -217,7 +343,7 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
       color: SERIES_PALETTE[i % SERIES_PALETTE.length],
     }));
     return { multiSeriesData: data, multiSeries: series };
-    }, [displayRows, pivotCfg, dateCol, numericCols, module.slug]);
+  }, [displayRows, pivotCfg, dateCol, numericCols, module.slug]);
 
   const singleSeriesData = useMemo(() => {
     if (pivotCfg || multiSeriesData.length) return [];
@@ -237,7 +363,7 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
     const res = await fetch(`/api/records/${module.slug}`);
     const data = await res.json();
     setRows(data.rows || []);
-    router.refresh(); // re-renders server components (dashboard stats)
+    router.refresh();
   }
 
   function showMsg(text: string, ok: boolean) {
@@ -321,7 +447,6 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
 
   const numericTotals = Object.entries(totals).slice(0, 4);
 
-  // Persist collapsed state per module
   const collapsedKey = `table_collapsed_${module.slug}`;
   const [tableCollapsed, setTableCollapsed] = useState(false);
   useEffect(() => {
@@ -336,8 +461,6 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
     setTableCollapsed(val);
     try { localStorage.setItem(collapsedKey, String(val)); } catch {}
   }
-
- 
 
   return (
     <div className="page">
@@ -354,20 +477,14 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
               <select
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
-                style={{
-                  padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border)',
-                  background: 'var(--surface-2)', color: 'var(--text)', fontSize: '0.85rem', cursor: 'pointer',
-                }}
+                style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface-2)', color: 'var(--text)', fontSize: '0.85rem', cursor: 'pointer' }}
               >
                 {MONTHS.map((m) => <option key={m} value={m}>{m}</option>)}
               </select>
               <select
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(Number(e.target.value))}
-                style={{
-                  padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border)',
-                  background: 'var(--surface-2)', color: 'var(--text)', fontSize: '0.85rem', cursor: 'pointer',
-                }}
+                style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface-2)', color: 'var(--text)', fontSize: '0.85rem', cursor: 'pointer' }}
               >
                 {YEAR_OPTIONS.map((y) => <option key={y} value={y}>{y}</option>)}
               </select>
@@ -404,44 +521,23 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
       {/* Chart */}
       {module.slug === 'finance' && pivotData.length > 0 ? (
         <div style={{ marginBottom: 14 }}>
-          <FinanceChartCard
-            data={pivotData}
-            series={pivotSeries}
-            goals={financeGoals}
-            tall={tableCollapsed}
-          />
+          <FinanceChartCard data={pivotData} series={pivotSeries} goals={financeGoals} tall={tableCollapsed} />
         </div>
       ) : pivotCfg && pivotData.length > 0 ? (
         <div style={{ marginBottom: 14 }}>
-          <StackedAreaChartCard
-            title={`${module.label} — by month`}
-            data={pivotData}
-            series={pivotSeries}
-            height={tableCollapsed ? 480 : undefined}
-          />
+          <StackedAreaChartCard title={`${module.label} — by month`} data={pivotData} series={pivotSeries} height={tableCollapsed ? 480 : undefined} />
         </div>
       ) : multiSeriesData.length > 1 ? (
         <div style={{ marginBottom: 14 }}>
-          <StackedAreaChartCard
-            title={`${module.label} — all series by date`}
-            data={multiSeriesData}
-            series={multiSeries}
-            height={tableCollapsed ? 480 : undefined}
-          />
+          <StackedAreaChartCard title={`${module.label} — all series by date`} data={multiSeriesData} series={multiSeries} height={tableCollapsed ? 480 : undefined} />
         </div>
       ) : singleSeriesData.length > 1 ? (
         <div style={{ marginBottom: 14 }}>
-          <AreaChartCard
-            title={`${module.label} — trend`}
-            data={singleSeriesData}
-            color={accent}
-            height={tableCollapsed ? 480 : undefined}
-          />
+          <AreaChartCard title={`${module.label} — trend`} data={singleSeriesData} color={accent} height={tableCollapsed ? 480 : undefined} />
         </div>
       ) : null}
 
-      {/* Tabs + collapse control */}
-      {/* Always-visible tab bar */}
+      {/* Tab bar */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 14, alignItems: 'center' }}>
         {!tableCollapsed && (['records', 'add', 'ai'] as const).map((tab) => (
           <button
@@ -456,12 +552,10 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
         <button
           onClick={() => toggleCollapsed(!tableCollapsed)}
           style={{
-            marginLeft: tableCollapsed ? 'auto' : 'auto',
-            display: 'inline-flex', alignItems: 'center', gap: 5,
+            marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 5,
             padding: '6px 14px', borderRadius: 99,
             border: '1px solid var(--border)', background: 'var(--surface-2)',
-            color: 'var(--text-3)', fontSize: '0.8rem', cursor: 'pointer',
-            transition: 'all 0.15s',
+            color: 'var(--text-3)', fontSize: '0.8rem', cursor: 'pointer', transition: 'all 0.15s',
           }}
         >
           {tableCollapsed ? '↓ Expand table' : '↑ Collapse table'}
@@ -473,7 +567,7 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
         )}
       </div>
 
-      {/* Collapsible content — smooth height + fade */}
+      {/* Collapsible content */}
       <div style={{
         overflow: 'hidden',
         maxHeight: tableCollapsed ? 0 : '2000px',
@@ -481,118 +575,122 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
         transition: 'max-height 0.35s ease, opacity 0.25s ease',
         pointerEvents: tableCollapsed ? 'none' : undefined,
       }}>
-        <>
 
-      {/* Records Table */}
-      {activeTab === 'records' && (
-        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          <div className="table-wrap" style={{ maxHeight: 520 }}>
-            <table>
-              <thead>
-                <tr>
-                  {module.columns.map((col) => <th key={col.key}>{col.label}</th>)}
-                  <th style={{ width: 140 }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {displayRows.length === 0 && (
-                  <tr><td colSpan={module.columns.length + 1} style={{ textAlign: 'center', padding: 32, color: 'var(--text-3)' }}>No records for {module.slug === 'finance' ? `${selectedMonth} ${selectedYear}` : 'this module'}.</td></tr>
-                )}
-                {displayRows.map((row) => {
-                  const isEditing = editingId === row.id;
-                  return (
-                    <tr key={row.id || JSON.stringify(row)}>
-                      {module.columns.map((col) => (
-                        <td key={col.key}>
-                          {isEditing ? renderEditCell(col) : (
-                            <span title={String(row[col.key] ?? '')}>
-                              {String(row[col.key] ?? '')}
-                            </span>
-                          )}
+        {/* Records Table */}
+        {activeTab === 'records' && (
+          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div className="table-wrap" style={{ maxHeight: 520 }}>
+              <table>
+                <thead>
+                  <tr>
+                    {module.columns.map((col) => <th key={col.key}>{col.label}</th>)}
+                    <th style={{ width: 140 }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {displayRows.length === 0 && (
+                    <tr><td colSpan={module.columns.length + 1} style={{ textAlign: 'center', padding: 32, color: 'var(--text-3)' }}>
+                      No records for {module.slug === 'finance' ? `${selectedMonth} ${selectedYear}` : 'this module'}.
+                    </td></tr>
+                  )}
+                  {displayRows.map((row) => {
+                    const isEditing = editingId === row.id;
+                    return (
+                      <tr key={row.id || JSON.stringify(row)}>
+                        {module.columns.map((col) => (
+                          <td key={col.key}>
+                            {isEditing ? renderEditCell(col) : (
+                              <span title={String(row[col.key] ?? '')}>{String(row[col.key] ?? '')}</span>
+                            )}
+                          </td>
+                        ))}
+                        <td>
+                          <div className="td-actions">
+                            {isEditing ? (
+                              <>
+                                <button className="btn-save" onClick={saveEdit} disabled={saving}>{saving ? '…' : 'Save'}</button>
+                                <button className="btn-cancel" onClick={cancelEdit}>Cancel</button>
+                              </>
+                            ) : (
+                              <>
+                                <button className="btn-edit" onClick={() => startEdit(row)}>Edit</button>
+                                <button className="btn-danger" onClick={() => deleteRow(row.id)}>✕</button>
+                              </>
+                            )}
+                          </div>
                         </td>
-                      ))}
-                      <td>
-                        <div className="td-actions">
-                          {isEditing ? (
-                            <>
-                              <button className="btn-save" onClick={saveEdit} disabled={saving}>{saving ? '…' : 'Save'}</button>
-                              <button className="btn-cancel" onClick={cancelEdit}>Cancel</button>
-                            </>
-                          ) : (
-                            <>
-                              <button className="btn-edit" onClick={() => startEdit(row)}>Edit</button>
-                              <button className="btn-danger" onClick={() => deleteRow(row.id)}>✕</button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Add Row Form */}
-      {activeTab === 'add' && (
-        <div className="card">
-          <div className="card-header">
-            <p className="section-title">Add a new record</p>
-          </div>
-          <div className="form-grid">
-            {module.columns
-              .filter((col) => !HIDDEN_FORM_KEYS[module.slug]?.has(col.key))
-              .map((col) => (
-              <div key={col.key} className={`field${col.type === 'textarea' ? ' span-2' : ''}`}>
-                <label>{col.label}</label>
-                {col.type === 'select' ? (
-                  <select value={String(form[col.key] ?? '')} onChange={(e) => setForm((f) => ({ ...f, [col.key]: e.target.value }))}>
-                    <option value="">Select…</option>
-                    {col.options?.map((o) => <option key={o} value={o}>{o}</option>)}
-                  </select>
-                ) : col.type === 'textarea' ? (
-                  <textarea value={String(form[col.key] ?? '')} onChange={(e) => setForm((f) => ({ ...f, [col.key]: e.target.value }))} />
-                ) : (
-                  <input
-                    type={col.type === 'number' ? 'number' : col.type === 'date' ? 'date' : 'text'}
-                    value={String(form[col.key] ?? '')}
-                    onChange={(e) => setForm((f) => ({ ...f, [col.key]: col.type === 'number' ? Number(e.target.value) : e.target.value }))}
-                    {...(col.type === 'date' && (() => {
-                      const monthIndex = MONTHS.indexOf(selectedMonth);
-                      const pad = String(monthIndex + 1).padStart(2, '0');
-                      const daysInMonth = new Date(selectedYear, monthIndex + 1, 0).getDate();
-                      return {
-                        min: `${selectedYear}-${pad}-01`,
-                        max: `${selectedYear}-${pad}-${String(daysInMonth).padStart(2, '0')}`,
-                      };
-                    })())}
-                  />
-                )}
+        {/* Add Row */}
+        {activeTab === 'add' && (
+          module.slug === 'lifestyle' ? (
+            /* ── Lifestyle: inline checkbox row ── */
+            <LifestyleInlineAdd module={module} accent={accent} onSaved={refresh} />
+          ) : (
+            /* ── All other modules: standard form ── */
+            <div className="card">
+              <div className="card-header">
+                <p className="section-title">Add a new record</p>
               </div>
-            ))}
-          </div>
-          <div style={{ display: 'flex', gap: 10, marginTop: 16, alignItems: 'center' }}>
-            <button className="btn btn-primary" style={{ background: accent, borderColor: accent, color: '#000' }} onClick={saveRow}>
-              Save Record
-            </button>
-            <button className="btn btn-secondary" onClick={() => setForm(Object.fromEntries(module.columns.map((c) => [c.key, ''])))}>
-              Clear
-            </button>
-          </div>
-        </div>
-      )}
+              <div className="form-grid">
+                {module.columns
+                  .filter((col) => !HIDDEN_FORM_KEYS[module.slug]?.has(col.key))
+                  .map((col) => (
+                    <div key={col.key} className={`field${col.type === 'textarea' ? ' span-2' : ''}`}>
+                      <label>{col.label}</label>
+                      {col.type === 'select' ? (
+                        <select value={String(form[col.key] ?? '')} onChange={(e) => setForm((f) => ({ ...f, [col.key]: e.target.value }))}>
+                          <option value="">Select…</option>
+                          {col.options?.map((o) => <option key={o} value={o}>{o}</option>)}
+                        </select>
+                      ) : col.type === 'textarea' ? (
+                        <textarea value={String(form[col.key] ?? '')} onChange={(e) => setForm((f) => ({ ...f, [col.key]: e.target.value }))} />
+                      ) : (
+                        <input
+                          type={col.type === 'number' ? 'number' : col.type === 'date' ? 'date' : 'text'}
+                          value={String(form[col.key] ?? '')}
+                          onChange={(e) => setForm((f) => ({ ...f, [col.key]: col.type === 'number' ? Number(e.target.value) : e.target.value }))}
+                          {...(col.type === 'date' && (() => {
+                            const monthIndex = MONTHS.indexOf(selectedMonth);
+                            const pad = String(monthIndex + 1).padStart(2, '0');
+                            const daysInMonth = new Date(selectedYear, monthIndex + 1, 0).getDate();
+                            return {
+                              min: `${selectedYear}-${pad}-01`,
+                              max: `${selectedYear}-${pad}-${String(daysInMonth).padStart(2, '0')}`,
+                            };
+                          })())}
+                        />
+                      )}
+                    </div>
+                  ))}
+              </div>
+              <div style={{ display: 'flex', gap: 10, marginTop: 16, alignItems: 'center' }}>
+                <button className="btn btn-primary" style={{ background: accent, borderColor: accent, color: '#000' }} onClick={saveRow}>
+                  Save Record
+                </button>
+                <button className="btn btn-secondary" onClick={() => setForm(Object.fromEntries(module.columns.map((c) => [c.key, ''])))}>
+                  Clear
+                </button>
+              </div>
+            </div>
+          )
+        )}
 
-      {/* AI Insights */}
-      {activeTab === 'ai' && <AiInsights slug={module.slug} rows={rows} />}
-        </>
+        {/* AI Insights */}
+        {activeTab === 'ai' && <AiInsights slug={module.slug} rows={rows} />}
       </div>
     </div>
   );
 }
 
-// ─── Finance Chart with category toggles + dashed goal lines ─────────────────
+// ─── Finance Chart ────────────────────────────────────────────────────────────
 const SHORT_MONTHS: Record<string, string> = {
   '01':'Jan','02':'Feb','03':'Mar','04':'Apr','05':'May','06':'Jun',
   '07':'Jul','08':'Aug','09':'Sep','10':'Oct','11':'Nov','12':'Dec',
@@ -603,52 +701,21 @@ function fmtMonth(val: string) {
 }
 
 const tooltipStyle = {
-  contentStyle: {
-    background: '#141820', border: '1px solid rgba(255,255,255,0.1)',
-    borderRadius: 10, fontSize: 12, color: '#f0f4ff',
-    boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-  },
+  contentStyle: { background: '#141820', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, fontSize: 12, color: '#f0f4ff', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' },
   itemStyle: { color: '#8892a4' },
   labelStyle: { color: '#f0f4ff', fontWeight: 700 },
   cursor: { fill: 'rgba(255,255,255,0.04)' },
 };
 
-function FinanceChartCard({
-  data,
-  series,
-  goals,
-  tall = false,
-}: {
-  data: Record<string, unknown>[];
-  series: { key: string; label: string; color: string }[];
-  goals: Record<string, number>;
-  tall?: boolean;
-}) {
+function FinanceChartCard({ data, series, goals, tall = false }: { data: Record<string, unknown>[]; series: { key: string; label: string; color: string }[]; goals: Record<string, number>; tall?: boolean }) {
   const [activeSeries, setActiveSeries] = useState<Set<string>>(() => new Set(series.map((s) => s.key)));
   const [activeGoals, setActiveGoals] = useState<Set<string>>(new Set());
 
-  // Keep activeSeries in sync if series changes (new data loaded)
-  useEffect(() => {
-    setActiveSeries(new Set(series.map((s) => s.key)));
-  }, [series.map((s) => s.key).join(',')]);
+  useEffect(() => { setActiveSeries(new Set(series.map((s) => s.key))); }, [series.map((s) => s.key).join(',')]);
 
-  function toggleSeries(key: string) {
-    setActiveSeries((prev) => {
-      const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
-      return next;
-    });
-  }
+  function toggleSeries(key: string) { setActiveSeries((prev) => { const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next; }); }
+  function toggleGoal(key: string) { setActiveGoals((prev) => { const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next; }); }
 
-  function toggleGoal(key: string) {
-    setActiveGoals((prev) => {
-      const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
-      return next;
-    });
-  }
-
-  // Only show goal toggles for series that have a goal set
   const seriesWithGoals = series.filter((s) => (goals[s.key] ?? 0) > 0);
 
   return (
@@ -656,64 +723,34 @@ function FinanceChartCard({
       <div className="card-header" style={{ alignItems: 'flex-start' }}>
         <p className="section-title">Finance — by month</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
-
-          {/* Series toggles */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, justifyContent: 'flex-end' }}>
             <span style={{ fontSize: '0.7rem', color: 'var(--text-3)', alignSelf: 'center', marginRight: 2 }}>Series:</span>
-          {series.map((s) => {
-            const on = activeSeries.has(s.key);
-            return (
-              <button
-                key={s.key}
-                onClick={() => toggleSeries(s.key)}
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 5,
-                  padding: '3px 10px', borderRadius: 99, fontSize: '0.75rem', fontWeight: 600,
-                  cursor: 'pointer', border: `1px solid ${on ? s.color : 'var(--border)'}`,
-                  background: on ? `${s.color}18` : 'transparent',
-                  color: on ? s.color : 'var(--text-3)',
-                  transition: 'all 0.15s',
-                }}
-              >
-                <span style={{ width: 7, height: 7, borderRadius: '50%', background: on ? s.color : 'var(--text-3)', display: 'inline-block' }} />
-                {s.label}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Goal line toggles — only shown if at least one goal is set */}
-        {seriesWithGoals.length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, justifyContent: 'flex-end' }}>
-            <span style={{ fontSize: '0.7rem', color: 'var(--text-3)', alignSelf: 'center', marginRight: 2 }}>Goals:</span>
-            {seriesWithGoals.map((s) => {
-              const on = activeGoals.has(s.key);
+            {series.map((s) => {
+              const on = activeSeries.has(s.key);
               return (
-                <button
-                  key={s.key}
-                  onClick={() => toggleGoal(s.key)}
-                  style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 5,
-                    padding: '3px 10px', borderRadius: 99, fontSize: '0.75rem', fontWeight: 600,
-                    cursor: 'pointer', border: `1px solid ${on ? s.color : 'var(--border)'}`,
-                    background: on ? `${s.color}10` : 'transparent',
-                    color: on ? s.color : 'var(--text-3)',
-                    transition: 'all 0.15s',
-                  }}
-                >
-                  <span style={{
-                    width: 16, height: 2, borderTop: `2px dashed ${on ? s.color : 'var(--text-3)'}`,
-                    display: 'inline-block',
-                  }} />
+                <button key={s.key} onClick={() => toggleSeries(s.key)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 99, fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', border: `1px solid ${on ? s.color : 'var(--border)'}`, background: on ? `${s.color}18` : 'transparent', color: on ? s.color : 'var(--text-3)', transition: 'all 0.15s' }}>
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: on ? s.color : 'var(--text-3)', display: 'inline-block' }} />
                   {s.label}
                 </button>
               );
             })}
           </div>
-        )}
-        </div>{/* end right column */}
+          {seriesWithGoals.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, justifyContent: 'flex-end' }}>
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-3)', alignSelf: 'center', marginRight: 2 }}>Goals:</span>
+              {seriesWithGoals.map((s) => {
+                const on = activeGoals.has(s.key);
+                return (
+                  <button key={s.key} onClick={() => toggleGoal(s.key)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 99, fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', border: `1px solid ${on ? s.color : 'var(--border)'}`, background: on ? `${s.color}10` : 'transparent', color: on ? s.color : 'var(--text-3)', transition: 'all 0.15s' }}>
+                    <span style={{ width: 16, height: 2, borderTop: `2px dashed ${on ? s.color : 'var(--text-3)'}`, display: 'inline-block' }} />
+                    {s.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
-
       <div style={{ height: tall ? 480 : 300, transition: 'height 0.3s ease' }}>
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
@@ -728,65 +765,28 @@ function FinanceChartCard({
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
             <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#4d5668' }} axisLine={false} tickLine={false} tickFormatter={fmtMonth} />
             <YAxis tick={{ fontSize: 11, fill: '#4d5668' }} axisLine={false} tickLine={false} />
-            <Tooltip
-              content={({ active, payload, label }) => {
-                if (!active || !payload?.length) return null;
-                return (
-                  <div style={{ ...tooltipStyle.contentStyle, padding: '10px 14px', minWidth: 140 }}>
-                    <p style={{ color: '#f0f4ff', fontWeight: 700, marginBottom: 6, fontSize: 12 }}>{fmtMonth(String(label))}</p>
-                    {payload.map((p: any) => (
-                      <div key={p.dataKey} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: p.color, flexShrink: 0, display: 'inline-block' }} />
-                        <span style={{ color: '#8892a4', fontSize: 11 }}>{p.name}</span>
-                        <span style={{ color: '#f0f4ff', fontSize: 11, marginLeft: 'auto', fontWeight: 600 }}>{p.value}</span>
-                      </div>
-                    ))}
-                  </div>
-                );
-              }}
-            />
-            <Legend
-              iconSize={8}
-              iconType="circle"
-              formatter={(value) => <span style={{ color: '#8892a4', fontSize: 11 }}>{value}</span>}
-            />
-
-            {/* Active series areas */}
-            {series.map((s) =>
-              activeSeries.has(s.key) ? (
-                <Area
-                  key={s.key}
-                  type="monotone"
-                  dataKey={s.key}
-                  name={s.label}
-                  stroke={s.color}
-                  strokeWidth={2}
-                  fill={`url(#fcg-${s.key})`}
-                  dot={false}
-                  activeDot={{ r: 4, fill: s.color, strokeWidth: 0 }}
-                  connectNulls
-                />
-              ) : null
-            )}
-
-            {/* Dashed goal reference lines */}
-            {series.map((s) =>
-              activeGoals.has(s.key) && (goals[s.key] ?? 0) > 0 ? (
-                <ReferenceLine
-                  key={`goal-${s.key}`}
-                  y={goals[s.key]}
-                  stroke={s.color}
-                  strokeDasharray="6 3"
-                  strokeWidth={1.5}
-                  label={{
-                    value: `${s.label} goal`,
-                    fill: s.color,
-                    fontSize: 10,
-                    position: 'insideTopRight',
-                  }}
-                />
-              ) : null
-            )}
+            <Tooltip content={({ active, payload, label }) => {
+              if (!active || !payload?.length) return null;
+              return (
+                <div style={{ ...tooltipStyle.contentStyle, padding: '10px 14px', minWidth: 140 }}>
+                  <p style={{ color: '#f0f4ff', fontWeight: 700, marginBottom: 6, fontSize: 12 }}>{fmtMonth(String(label))}</p>
+                  {payload.map((p: any) => (
+                    <div key={p.dataKey} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: p.color, flexShrink: 0, display: 'inline-block' }} />
+                      <span style={{ color: '#8892a4', fontSize: 11 }}>{p.name}</span>
+                      <span style={{ color: '#f0f4ff', fontSize: 11, marginLeft: 'auto', fontWeight: 600 }}>{p.value}</span>
+                    </div>
+                  ))}
+                </div>
+              );
+            }} />
+            <Legend iconSize={8} iconType="circle" formatter={(value) => <span style={{ color: '#8892a4', fontSize: 11 }}>{value}</span>} />
+            {series.map((s) => activeSeries.has(s.key) ? (
+              <Area key={s.key} type="monotone" dataKey={s.key} name={s.label} stroke={s.color} strokeWidth={2} fill={`url(#fcg-${s.key})`} dot={false} activeDot={{ r: 4, fill: s.color, strokeWidth: 0 }} connectNulls />
+            ) : null)}
+            {series.map((s) => activeGoals.has(s.key) && (goals[s.key] ?? 0) > 0 ? (
+              <ReferenceLine key={`goal-${s.key}`} y={goals[s.key]} stroke={s.color} strokeDasharray="6 3" strokeWidth={1.5} label={{ value: `${s.label} goal`, fill: s.color, fontSize: 10, position: 'insideTopRight' }} />
+            ) : null)}
           </AreaChart>
         </ResponsiveContainer>
       </div>
@@ -804,7 +804,6 @@ function StatMini({ label, value, accent }: { label: string; value: string; acce
   );
 }
 
-// ─── Finance-specific natures with goal direction logic ───────────────────────
 const FINANCE_NATURES_LIST = [
   { nature: 'Income',         label: 'Income',        color: '#00d4aa', lowerIsBetter: false },
   { nature: 'Expense',        label: 'Expenses',       color: '#f06292', lowerIsBetter: true  },
@@ -813,26 +812,11 @@ const FINANCE_NATURES_LIST = [
   { nature: 'Debt',           label: 'Debt',           color: '#ef4444', lowerIsBetter: true  },
   { nature: 'Emergency Fund', label: 'Emergency Fund', color: '#38bdf8', lowerIsBetter: false },
 ];
-function FinanceStatCards({
-  rows,
-  accent,
-  goals,
-  onGoalChange,
-  monthLabel,
-}: {
-  rows: RecordShape[];
-  accent: string;
-  goals: Record<string, number>;
-  onGoalChange: (nature: string, value: number) => void;
-  monthLabel: string;
-}) {
+
+function FinanceStatCards({ rows, accent, goals, onGoalChange, monthLabel }: { rows: RecordShape[]; accent: string; goals: Record<string, number>; onGoalChange: (nature: string, value: number) => void; monthLabel: string }) {
   const totals = useMemo(() => {
     const map: Record<string, number> = {};
-    rows.forEach((r) => {
-      const nature = String(r.financial_nature ?? '').trim();
-      const amount = Number(r.amount || 0);
-      if (nature) map[nature] = (map[nature] ?? 0) + amount;
-    });
+    rows.forEach((r) => { const nature = String(r.financial_nature ?? '').trim(); const amount = Number(r.amount || 0); if (nature) map[nature] = (map[nature] ?? 0) + amount; });
     return map;
   }, [rows]);
 
@@ -845,87 +829,39 @@ function FinanceStatCards({
         const actual = totals[nature] ?? 0;
         const goal = goals[nature] ?? 0;
         const isEditing = editingNature === nature;
-
-        // Progress %: raw for labels, capped at 100 for bar width
         const pct = goal > 0 ? (actual / goal) * 100 : 0;
         const displayPct = Math.min(pct, 100);
-
-        // Bar colour logic
         let barColor: string;
-        if (lowerIsBetter) {
-          // Expenses / Debt: green = well under budget, amber = close, red = over
-          barColor = pct > 100 ? '#ef4444' : pct > 80 ? '#f5a623' : '#4ade80';
-        } else {
-          // Income / Savings / Emergency Fund / Frass: green = on track, amber = halfway, red = far off
-          barColor = pct >= 80 ? '#4ade80' : pct >= 40 ? '#f5a623' : '#ef4444';
-        }
-
-        const diff = Math.abs(actual - goal);
-        const statusLabel = goal > 0
-          ? lowerIsBetter
-            ? pct > 100
-              ? `${(pct - 100).toFixed(0)}% over goal`
-              : `${(100 - pct).toFixed(0)}% under goal`
-            : pct > 100
-              ? `${(pct - 100).toFixed(0)}% over goal 🎉`
-              : `${pct.toFixed(0)}% of goal`
-          : null;
+        if (lowerIsBetter) { barColor = pct > 100 ? '#ef4444' : pct > 80 ? '#f5a623' : '#4ade80'; }
+        else { barColor = pct >= 80 ? '#4ade80' : pct >= 40 ? '#f5a623' : '#ef4444'; }
+        const statusLabel = goal > 0 ? lowerIsBetter ? pct > 100 ? `${(pct - 100).toFixed(0)}% over goal` : `${(100 - pct).toFixed(0)}% under goal` : pct > 100 ? `${(pct - 100).toFixed(0)}% over goal 🎉` : `${pct.toFixed(0)}% of goal` : null;
 
         return (
           <div key={nature} className="stat-card">
             <div className="stat-accent-bar" style={{ background: `linear-gradient(90deg, ${color}, transparent)` }} />
             <div className="stat-label">{label}</div>
             <div className="stat-value" style={{ fontSize: '1.4rem' }}>{formatMoney(actual)}</div>
-
-            {/* Goal row */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
               {isEditing ? (
                 <>
-                  <input
-                    type="number"
-                    value={draftGoal}
-                    autoFocus
-                    onChange={(e) => setDraftGoal(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') { onGoalChange(nature, Number(draftGoal)); setEditingNature(null); }
-                      if (e.key === 'Escape') setEditingNature(null);
-                    }}
-                    style={{
-                      width: 90, padding: '2px 6px', fontSize: '0.75rem',
-                      background: 'var(--surface-3)', border: `1px solid ${color}`,
-                      borderRadius: 4, color: 'var(--text)',
-                    }}
-                  />
-                  <button
-                    onClick={() => { onGoalChange(nature, Number(draftGoal)); setEditingNature(null); }}
-                    style={{ fontSize: '0.72rem', color, background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px' }}
-                  >✓</button>
-                  <button
-                    onClick={() => setEditingNature(null)}
-                    style={{ fontSize: '0.72rem', color: 'var(--text-3)', background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px' }}
-                  >✕</button>
+                  <input type="number" value={draftGoal} autoFocus onChange={(e) => setDraftGoal(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { onGoalChange(nature, Number(draftGoal)); setEditingNature(null); } if (e.key === 'Escape') setEditingNature(null); }}
+                    style={{ width: 90, padding: '2px 6px', fontSize: '0.75rem', background: 'var(--surface-3)', border: `1px solid ${color}`, borderRadius: 4, color: 'var(--text)' }} />
+                  <button onClick={() => { onGoalChange(nature, Number(draftGoal)); setEditingNature(null); }} style={{ fontSize: '0.72rem', color, background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px' }}>✓</button>
+                  <button onClick={() => setEditingNature(null)} style={{ fontSize: '0.72rem', color: 'var(--text-3)', background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px' }}>✕</button>
                 </>
               ) : (
-                <button
-                  onClick={() => { setEditingNature(nature); setDraftGoal(String(goals[nature] ?? '')); }}
-                  style={{ fontSize: '0.72rem', color: 'var(--text-3)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}
-                >
+                <button onClick={() => { setEditingNature(nature); setDraftGoal(String(goals[nature] ?? '')); }} style={{ fontSize: '0.72rem', color: 'var(--text-3)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}>
                   {goal > 0 ? `${monthLabel} goal: ${formatMoney(goal)} ✎` : <span style={{ color, opacity: 0.7 }}>+ Set {monthLabel} goal</span>}
                 </button>
               )}
             </div>
-
-            {/* Progress bar */}
             {goal > 0 && (
               <>
                 <div style={{ marginTop: 8, height: 4, background: 'var(--surface-3)', borderRadius: 99, overflow: 'hidden' }}>
                   <div style={{ height: '100%', width: `${displayPct}%`, background: barColor, borderRadius: 99, transition: 'width 0.4s ease' }} />
                 </div>
-                {statusLabel && (
-                  <div style={{ fontSize: '0.68rem', color: barColor, marginTop: 3, fontWeight: 600 }}>
-                    {statusLabel}
-                  </div>
-                )}
+                {statusLabel && <div style={{ fontSize: '0.68rem', color: barColor, marginTop: 3, fontWeight: 600 }}>{statusLabel}</div>}
               </>
             )}
           </div>
