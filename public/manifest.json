@@ -1,26 +1,24 @@
 {
   "name": "Personal HQ",
   "short_name": "HQ",
-  "description": "Your personal tracker for money, habits, skills, work, travel, and more.",
+  "description": "Your personal life tracker — finance, habits, skills, work, travel and more.",
   "start_url": "/",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#080a0f",
   "theme_color": "#00d4aa",
-  "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/icons/icon-192.png",
+      "src": "/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/icons/icon-512.png",
+      "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
     }
-  ],
-  "screenshots": [],
-  "categories": ["finance", "productivity", "lifestyle"]
+  ]
 }
