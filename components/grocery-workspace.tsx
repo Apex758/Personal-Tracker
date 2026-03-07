@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState, useEffect, useRef } from 'react';
+import { ChevronRight, ChevronLeft, Plus, X } from 'lucide-react';
 import type { RecordShape } from '@/lib/types';
 
 type GroceryRow = RecordShape & {
@@ -29,12 +30,27 @@ export function GroceryWorkspace({ initialRows }: { initialRows: RecordShape[] }
   const [syncStatus, setSyncStatus] = useState<'idle'|'syncing'|'synced'|'error'>('idle');
   const [form, setForm] = useState({ category: CATEGORY_ORDER[0], item: '', goal_amount: '', actual_amount: '', notes: '' });
 
+  // Panel collapse state (persisted)
+  const [panelCollapsed, setPanelCollapsed] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('grocery_panel_collapsed');
+      if (saved !== null) setPanelCollapsed(saved === 'true');
+    } catch {}
+  }, []);
+
+  function togglePanel() {
+    const next = !panelCollapsed;
+    setPanelCollapsed(next);
+    try { localStorage.setItem('grocery_panel_collapsed', String(next)); } catch {}
+  }
+
   const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isFirstRender = useRef(true);
 
   const grandActual = useMemo(() => rows.reduce((s, r) => s + num(r.actual_amount), 0), [rows]);
 
-  // Auto-sync to Finance 1.5s after actual totals change (skip first render)
   useEffect(() => {
     if (isFirstRender.current) { isFirstRender.current = false; return; }
     if (!grandActual) return;
@@ -120,21 +136,25 @@ export function GroceryWorkspace({ initialRows }: { initialRows: RecordShape[] }
   const syncBanner = { idle:null, syncing:{text:'Syncing to Finance…',color:'#f5a623'}, synced:{text:'✓ Finance updated',color:'#4ade80'}, error:{text:'⚠ Sync failed',color:'#ef4444'} }[syncStatus];
 
   return (
-    <div className="page">
+    <div className="page" style={{ paddingBottom: 40 }}>
+      {/* Header */}
       <div className="hero">
         <div className="hero-meta">
           <p className="eyebrow">Module</p>
           <h1 className="page-title" style={{ color:'#4ade80' }}>Grocery Budget</h1>
           <p className="muted small" style={{ maxWidth:440, marginTop:4 }}>Actual totals sync to Finance automatically when you make changes.</p>
         </div>
-        {syncBanner && (
-          <div style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 14px', borderRadius:99, background:`${syncBanner.color}18`, border:`1px solid ${syncBanner.color}40` }}>
-            {syncStatus==='syncing' && <span style={{ width:8,height:8,borderRadius:'50%',background:syncBanner.color,display:'inline-block',animation:'pulse 1s infinite' }} />}
-            <span style={{ fontSize:'0.82rem', color:syncBanner.color, fontWeight:600 }}>{syncBanner.text}</span>
-          </div>
-        )}
+        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          {syncBanner && (
+            <div style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 14px', borderRadius:99, background:`${syncBanner.color}18`, border:`1px solid ${syncBanner.color}40` }}>
+              {syncStatus==='syncing' && <span style={{ width:8,height:8,borderRadius:'50%',background:syncBanner.color,display:'inline-block',animation:'pulse 1s infinite' }} />}
+              <span style={{ fontSize:'0.82rem', color:syncBanner.color, fontWeight:600 }}>{syncBanner.text}</span>
+            </div>
+          )}
+        </div>
       </div>
 
+      {/* Stat cards */}
       <div className="stat-grid" style={{ marginBottom:14 }}>
         <div className="stat-card">
           <div className="stat-accent-bar" style={{ background:'linear-gradient(90deg,#4ade80,transparent)' }} />
@@ -144,7 +164,7 @@ export function GroceryWorkspace({ initialRows }: { initialRows: RecordShape[] }
         <div className="stat-card">
           <div className="stat-accent-bar" style={{ background:'linear-gradient(90deg,#f5a623,transparent)' }} />
           <div className="stat-label">Actual Spend</div>
-          <div className="stat-value" style={{ fontSize:'1.4rem', color:grandActual>grandGoal?'#ef4444':'#f0f4ff' }}>XCD {grandActual.toFixed(0)}</div>
+          <div className="stat-value" style={{ fontSize:'1.4rem', color:grandActual>grandGoal?'#ef4444':undefined }}>XCD {grandActual.toFixed(0)}</div>
         </div>
         <div className="stat-card">
           <div className="stat-accent-bar" style={{ background:`linear-gradient(90deg,${grandVariance>=0?'#4ade80':'#ef4444'},transparent)` }} />
@@ -166,107 +186,255 @@ export function GroceryWorkspace({ initialRows }: { initialRows: RecordShape[] }
 
       {message && <div className={`msg ${message.ok?'msg-ok':'msg-err'}`} style={{ marginBottom:12 }}>{message.text}</div>}
 
-      <div className="card" style={{ padding:0, overflow:'hidden', marginBottom:14 }}>
-        <div className="table-wrap" style={{ maxHeight:600 }}>
-          <table>
-            <thead>
-              <tr>
-                <th style={{ width:160 }}>Category</th><th>Item</th>
-                <th style={{ textAlign:'right',width:120 }}>Goal (XCD)</th>
-                <th style={{ textAlign:'right',width:120 }}>Actual (XCD)</th>
-                <th style={{ textAlign:'right',width:100 }}>Variance</th>
-                <th style={{ width:100 }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {Array.from(grouped.entries()).map(([cat, catRows]) => {
-                if (!catRows.length) return null;
-                const catGoal = catRows.reduce((s,r)=>s+num(r.goal_amount),0);
-                const catActual = catRows.reduce((s,r)=>s+num(r.actual_amount),0);
-                const catVar = catGoal - catActual;
-                const accent = CATEGORY_ACCENTS[cat]||'#00d4aa';
-                return [
-                  ...catRows.map((row) => {
-                    const isEditing = editingId===row.id;
-                    const variance = num(row.goal_amount)-num(row.actual_amount);
-                    return (
-                      <tr key={row.id}>
-                        <td><span className="badge" style={{ background:`${accent}18`,color:accent,fontSize:'0.7rem' }}>{cat}</span></td>
-                        <td style={{ fontWeight:500,color:'var(--text)' }}>
-                          {isEditing ? <input type="text" value={String(draft.item??'')} onChange={(e)=>setDraft((p)=>({...p,item:e.target.value}))} style={{ minWidth:140 }} /> : row.item}
-                        </td>
-                        <td style={{ textAlign:'right' }}>
-                          {isEditing ? <input type="number" value={String(draft.goal_amount??0)} onChange={(e)=>setDraft((p)=>({...p,goal_amount:Number(e.target.value)}))} style={{ minWidth:80,textAlign:'right' }} /> : num(row.goal_amount)>0?num(row.goal_amount).toFixed(0):<span style={{ color:'var(--text-3)' }}>—</span>}
-                        </td>
-                        <td style={{ textAlign:'right' }}>
-                          {isEditing ? <input type="number" value={String(draft.actual_amount??0)} onChange={(e)=>setDraft((p)=>({...p,actual_amount:Number(e.target.value)}))} style={{ minWidth:80,textAlign:'right' }} /> : num(row.actual_amount)>0?num(row.actual_amount).toFixed(0):<span style={{ color:'var(--text-3)' }}>—</span>}
-                        </td>
-                        <td style={{ textAlign:'right',color:variance>=0?'#4ade80':'#ef4444',fontFamily:'monospace',fontSize:'0.82rem' }}>
-                          {num(row.goal_amount)||num(row.actual_amount)?(variance>=0?'+':'')+variance.toFixed(0):<span style={{ color:'var(--text-3)' }}>—</span>}
-                        </td>
-                        <td>
-                          <div className="td-actions">
+      {/* ─── SPLIT LAYOUT ─── */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: panelCollapsed ? '1fr 48px' : '1fr 360px',
+        gap: 12,
+        transition: 'grid-template-columns 0.32s cubic-bezier(0.4,0,0.2,1)',
+        alignItems: 'start',
+      }}>
+
+        {/* LEFT: Table */}
+        <div className="card" style={{ padding:0, overflow:'hidden', minWidth: 0 }}>
+          <div className="table-wrap" style={{ maxHeight: 560, borderRadius: 'var(--radius)', border: 'none' }}>
+            <table>
+              <thead>
+                <tr>
+                  <th style={{ width:160 }}>Category</th>
+                  <th>Item</th>
+                  <th style={{ textAlign:'right',width:110 }}>Goal (XCD)</th>
+                  <th style={{ textAlign:'right',width:110 }}>Actual (XCD)</th>
+                  <th style={{ textAlign:'right',width:90 }}>Variance</th>
+                  <th style={{ width:96 }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Array.from(grouped.entries()).map(([cat, catRows]) => {
+                  if (!catRows.length) return null;
+                  const catGoal = catRows.reduce((s,r)=>s+num(r.goal_amount),0);
+                  const catActual = catRows.reduce((s,r)=>s+num(r.actual_amount),0);
+                  const catVar = catGoal - catActual;
+                  const accent = CATEGORY_ACCENTS[cat]||'#00d4aa';
+                  return [
+                    ...catRows.map((row) => {
+                      const isEditing = editingId===row.id;
+                      const variance = num(row.goal_amount)-num(row.actual_amount);
+                      return (
+                        <tr key={row.id}>
+                          <td><span className="badge" style={{ background:`${accent}18`,color:accent,fontSize:'0.7rem' }}>{cat}</span></td>
+                          <td style={{ fontWeight:500,color:'var(--text)' }}>
                             {isEditing
-                              ? <><button className="btn-save" onClick={saveEdit} disabled={saving}>{saving?'…':'Save'}</button><button className="btn-cancel" onClick={()=>{setEditingId(null);setDraft({});}}>Cancel</button></>
-                              : <><button className="btn-edit" onClick={()=>{setEditingId(row.id??null);setDraft({...row});}}>Edit</button><button className="btn-danger" onClick={()=>deleteRow(row.id)}>✕</button></>
-                            }
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  }),
-                  <tr key={`sub-${cat}`} style={{ background:'var(--surface-2)' }}>
-                    <td colSpan={2} style={{ fontWeight:700,fontSize:'0.78rem',textTransform:'uppercase',letterSpacing:'0.06em',color:accent }}>{cat} Subtotal</td>
-                    <td style={{ textAlign:'right',fontWeight:700,fontFamily:'monospace',color:'var(--text)' }}>{catGoal>0?catGoal.toFixed(0):'—'}</td>
-                    <td style={{ textAlign:'right',fontWeight:700,fontFamily:'monospace',color:'var(--text)' }}>{catActual>0?catActual.toFixed(0):'—'}</td>
-                    <td style={{ textAlign:'right',fontWeight:700,fontFamily:'monospace',color:catVar>=0?'#4ade80':'#ef4444' }}>{catGoal||catActual?(catVar>=0?'+':'')+catVar.toFixed(0):'—'}</td>
-                    <td />
-                  </tr>,
-                ];
-              })}
-              <tr style={{ background:'var(--surface-3)',borderTop:'2px solid var(--border-strong)' }}>
-                <td colSpan={2} style={{ fontWeight:800,fontSize:'0.88rem',textTransform:'uppercase',letterSpacing:'0.06em',color:'var(--text)' }}>TOTAL</td>
-                <td style={{ textAlign:'right',fontWeight:800,fontFamily:'monospace',fontSize:'0.95rem',color:'#4ade80' }}>{grandGoal.toFixed(0)}</td>
-                <td style={{ textAlign:'right',fontWeight:800,fontFamily:'monospace',fontSize:'0.95rem',color:grandActual>grandGoal?'#ef4444':'var(--text)' }}>{grandActual.toFixed(0)}</td>
-                <td style={{ textAlign:'right',fontWeight:800,fontFamily:'monospace',fontSize:'0.95rem',color:grandVariance>=0?'#4ade80':'#ef4444' }}>{(grandVariance>=0?'+':'')+grandVariance.toFixed(0)}</td>
-                <td />
-              </tr>
-            </tbody>
-          </table>
+                              ? <input type="text" value={String(draft.item??'')} onChange={(e)=>setDraft((p)=>({...p,item:e.target.value}))} style={{ minWidth:120 }} />
+                              : row.item}
+                          </td>
+                          <td style={{ textAlign:'right' }}>
+                            {isEditing
+                              ? <input type="number" value={String(draft.goal_amount??0)} onChange={(e)=>setDraft((p)=>({...p,goal_amount:Number(e.target.value)}))} style={{ minWidth:70,textAlign:'right' }} />
+                              : num(row.goal_amount)>0?num(row.goal_amount).toFixed(0):<span style={{ color:'var(--text-3)' }}>—</span>}
+                          </td>
+                          <td style={{ textAlign:'right' }}>
+                            {isEditing
+                              ? <input type="number" value={String(draft.actual_amount??0)} onChange={(e)=>setDraft((p)=>({...p,actual_amount:Number(e.target.value)}))} style={{ minWidth:70,textAlign:'right' }} />
+                              : num(row.actual_amount)>0?num(row.actual_amount).toFixed(0):<span style={{ color:'var(--text-3)' }}>—</span>}
+                          </td>
+                          <td style={{ textAlign:'right',color:variance>=0?'#4ade80':'#ef4444',fontFamily:'monospace',fontSize:'0.82rem' }}>
+                            {num(row.goal_amount)||num(row.actual_amount)?(variance>=0?'+':'')+variance.toFixed(0):<span style={{ color:'var(--text-3)' }}>—</span>}
+                          </td>
+                          <td>
+                            <div className="td-actions">
+                              {isEditing
+                                ? <><button className="btn-save" onClick={saveEdit} disabled={saving}>{saving?'…':'Save'}</button><button className="btn-cancel" onClick={()=>{setEditingId(null);setDraft({});}}>✕</button></>
+                                : <><button className="btn-edit" onClick={()=>{setEditingId(row.id??null);setDraft({...row});}}>Edit</button><button className="btn-danger" onClick={()=>deleteRow(row.id)}>✕</button></>
+                              }
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    }),
+                    <tr key={`sub-${cat}`} style={{ background:'var(--surface-2)' }}>
+                      <td colSpan={2} style={{ fontWeight:700,fontSize:'0.75rem',textTransform:'uppercase',letterSpacing:'0.06em',color:accent }}>{cat} Subtotal</td>
+                      <td style={{ textAlign:'right',fontWeight:700,fontFamily:'monospace',color:'var(--text)',fontSize:'0.82rem' }}>{catGoal>0?catGoal.toFixed(0):'—'}</td>
+                      <td style={{ textAlign:'right',fontWeight:700,fontFamily:'monospace',color:'var(--text)',fontSize:'0.82rem' }}>{catActual>0?catActual.toFixed(0):'—'}</td>
+                      <td style={{ textAlign:'right',fontWeight:700,fontFamily:'monospace',color:catVar>=0?'#4ade80':'#ef4444',fontSize:'0.82rem' }}>{catGoal||catActual?(catVar>=0?'+':'')+catVar.toFixed(0):'—'}</td>
+                      <td />
+                    </tr>,
+                  ];
+                })}
+                {/* Grand total row */}
+                <tr style={{ background:'var(--surface-3)',borderTop:'2px solid var(--border-strong)' }}>
+                  <td colSpan={2} style={{ fontWeight:800,fontSize:'0.86rem',textTransform:'uppercase',letterSpacing:'0.06em',color:'var(--text)' }}>TOTAL</td>
+                  <td style={{ textAlign:'right',fontWeight:800,fontFamily:'monospace',fontSize:'0.92rem',color:'#4ade80' }}>{grandGoal.toFixed(0)}</td>
+                  <td style={{ textAlign:'right',fontWeight:800,fontFamily:'monospace',fontSize:'0.92rem',color:grandActual>grandGoal?'#ef4444':'var(--text)' }}>{grandActual.toFixed(0)}</td>
+                  <td style={{ textAlign:'right',fontWeight:800,fontFamily:'monospace',fontSize:'0.92rem',color:grandVariance>=0?'#4ade80':'#ef4444' }}>{(grandVariance>=0?'+':'')+grandVariance.toFixed(0)}</td>
+                  <td />
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* RIGHT: Add Item Panel + collapse toggle */}
+        <div style={{ display:'flex', flexDirection:'column', gap:8, minWidth:0 }}>
+
+          {/* Collapse toggle button */}
+          <button
+            onClick={togglePanel}
+            title={panelCollapsed ? 'Expand add panel' : 'Collapse add panel'}
+            style={{
+              alignSelf: panelCollapsed ? 'center' : 'flex-end',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 36,
+              height: 36,
+              borderRadius: 10,
+              border: '1px solid var(--border)',
+              background: 'var(--surface)',
+              color: 'var(--text-2)',
+              cursor: 'pointer',
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
+              transition: 'all 0.2s',
+              flexShrink: 0,
+            }}
+          >
+            {panelCollapsed ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
+          </button>
+
+          {/* Panel content — smooth collapse */}
+          <div style={{
+            overflow: 'hidden',
+            maxHeight: panelCollapsed ? 0 : '900px',
+            opacity: panelCollapsed ? 0 : 1,
+            transition: 'max-height 0.32s cubic-bezier(0.4,0,0.2,1), opacity 0.22s ease',
+            pointerEvents: panelCollapsed ? 'none' : undefined,
+          }}>
+            <div className="card" style={{ padding: '18px 16px' }}>
+              <div className="card-header" style={{ marginBottom: 14 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  <Plus size={16} color="#4ade80" />
+                  <p className="section-title" style={{ fontSize:'0.95rem' }}>Add Item</p>
+                </div>
+              </div>
+
+              {/* Category */}
+              <div className="field" style={{ marginBottom: 10 }}>
+                <label>Category</label>
+                <select value={form.category} onChange={(e)=>setForm((f)=>({...f,category:e.target.value}))}>
+                  {CATEGORY_ORDER.map((c)=><option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+
+              {/* Item name */}
+              <div className="field" style={{ marginBottom: 10 }}>
+                <label>Item Name</label>
+                <input
+                  type="text"
+                  value={form.item}
+                  onChange={(e)=>setForm((f)=>({...f,item:e.target.value}))}
+                  placeholder="e.g. Chicken Thighs"
+                  onKeyDown={(e)=>{ if(e.key==='Enter' && form.item.trim()) saveRow(); }}
+                />
+              </div>
+
+              {/* Goal amount */}
+              <div className="field" style={{ marginBottom: 10 }}>
+                <label>Goal Amount (XCD)</label>
+                <input
+                  type="number"
+                  value={form.goal_amount}
+                  onChange={(e)=>setForm((f)=>({...f,goal_amount:e.target.value}))}
+                  placeholder="0"
+                />
+              </div>
+
+              {/* Actual amount */}
+              <div className="field" style={{ marginBottom: 10 }}>
+                <label>Actual Amount (XCD)</label>
+                <input
+                  type="number"
+                  value={form.actual_amount}
+                  onChange={(e)=>setForm((f)=>({...f,actual_amount:e.target.value}))}
+                  placeholder="0"
+                />
+              </div>
+
+              {/* Notes */}
+              <div className="field" style={{ marginBottom: 16 }}>
+                <label>Notes</label>
+                <input
+                  type="text"
+                  value={form.notes}
+                  onChange={(e)=>setForm((f)=>({...f,notes:e.target.value}))}
+                  placeholder="Optional"
+                />
+              </div>
+
+              {/* Category colour preview */}
+              {form.category && (
+                <div style={{
+                  display:'flex', alignItems:'center', gap:8, marginBottom:14,
+                  padding:'8px 10px', borderRadius:8,
+                  background:`${CATEGORY_ACCENTS[form.category]||'#00d4aa'}14`,
+                  border:`1px solid ${CATEGORY_ACCENTS[form.category]||'#00d4aa'}30`,
+                }}>
+                  <span style={{ width:8,height:8,borderRadius:'50%',background:CATEGORY_ACCENTS[form.category]||'#00d4aa',flexShrink:0 }} />
+                  <span style={{ fontSize:'0.76rem',color:CATEGORY_ACCENTS[form.category]||'#00d4aa',fontWeight:600 }}>{form.category}</span>
+                </div>
+              )}
+
+              <div style={{ display:'flex', gap:8 }}>
+                <button
+                  className="btn btn-primary"
+                  style={{ background:'#4ade80',borderColor:'#4ade80',color:'#000',flex:1 }}
+                  onClick={saveRow}
+                  disabled={!form.item.trim()}
+                >
+                  <Plus size={14} /> Add
+                </button>
+                <button
+                  className="btn btn-secondary"
+                  style={{ padding:'9px 12px' }}
+                  onClick={()=>setForm({category:CATEGORY_ORDER[0],item:'',goal_amount:'',actual_amount:'',notes:''})}
+                  title="Clear form"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Collapsed pill label */}
+          {panelCollapsed && (
+            <div
+              onClick={togglePanel}
+              style={{
+                writingMode: 'vertical-rl',
+                textOrientation: 'mixed',
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                letterSpacing: '0.12em',
+                textTransform: 'uppercase',
+                color: '#4ade80',
+                cursor: 'pointer',
+                padding: '12px 6px',
+                borderRadius: 8,
+                background: 'rgba(74,222,128,0.08)',
+                border: '1px solid rgba(74,222,128,0.2)',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                textAlign: 'center',
+                userSelect: 'none',
+              }}
+            >
+              Add Item
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="card">
-        <div className="card-header"><p className="section-title">Add Item</p></div>
-        <div className="form-grid">
-          <div className="field">
-            <label>Category</label>
-            <select value={form.category} onChange={(e)=>setForm((f)=>({...f,category:e.target.value}))}>
-              {CATEGORY_ORDER.map((c)=><option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
-          <div className="field">
-            <label>Item Name</label>
-            <input type="text" value={form.item} onChange={(e)=>setForm((f)=>({...f,item:e.target.value}))} placeholder="e.g. Chicken Thighs" />
-          </div>
-          <div className="field">
-            <label>Goal Amount (XCD)</label>
-            <input type="number" value={form.goal_amount} onChange={(e)=>setForm((f)=>({...f,goal_amount:e.target.value}))} placeholder="0" />
-          </div>
-          <div className="field">
-            <label>Actual Amount (XCD)</label>
-            <input type="number" value={form.actual_amount} onChange={(e)=>setForm((f)=>({...f,actual_amount:e.target.value}))} placeholder="0" />
-          </div>
-          <div className="field span-2">
-            <label>Notes</label>
-            <input type="text" value={form.notes} onChange={(e)=>setForm((f)=>({...f,notes:e.target.value}))} placeholder="Optional" />
-          </div>
-        </div>
-        <div style={{ display:'flex',gap:10,marginTop:16 }}>
-          <button className="btn btn-primary" style={{ background:'#4ade80',borderColor:'#4ade80',color:'#000' }} onClick={saveRow} disabled={!form.item.trim()}>Add Item</button>
-          <button className="btn btn-secondary" onClick={()=>setForm({category:CATEGORY_ORDER[0],item:'',goal_amount:'',actual_amount:'',notes:''})}>Clear</button>
-        </div>
-      </div>
+      <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }`}</style>
     </div>
   );
 }
