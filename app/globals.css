@@ -1044,6 +1044,13 @@ td select option { background: var(--surface-2); color: var(--text); }
   height: calc(100vh - 100px);
   gap: 24px;
   padding: 24px;
+  margin-left: 60px;
+}
+
+@media (min-width: 821px) {
+  .recipe-workspace {
+    margin-left: 60px;
+  }
 }
 
 /* Table of Contents - Left Side */

@@ -28,7 +28,7 @@ const DEMO_RECIPES: Recipe[] = [
     servings: 4,
     ingredients: '• 1 1/2 cups all-purpose flour\n• 3 1/2 tsp baking powder\n• 1 tbsp sugar\n• 1/4 tsp salt\n• 1 1/4 cups milk\n• 1 egg\n• 3 tbsp melted butter',
     instructions: '1. Mix flour, baking powder, sugar and salt in a large bowl.\n2. Make a well in the center and pour in milk, egg and melted butter.\n3. Mix until smooth.\n4. Heat a lightly oiled griddle over medium-high heat.\n5. Pour batter onto griddle using approximately 1/4 cup for each pancake.\n6. Brown on both sides and serve hot.',
-    notes: '',
+    notes: 'Serve with maple syrup and fresh berries',
   },
   {
     id: 'demo-2',
@@ -52,7 +52,7 @@ const DEMO_RECIPES: Recipe[] = [
     servings: 4,
     ingredients: '• 400g spaghetti\n• 200g pancetta\n• 4 egg yolks\n• 100g pecorino cheese\n• Black pepper\n• Salt',
     instructions: '1. Cook spaghetti according to package directions.\n2. Cut pancetta into small cubes and fry until crispy.\n3. Mix egg yolks with grated pecorino and black pepper.\n4. Drain pasta, reserving 1 cup pasta water.\n5. Add hot pasta to pancetta pan, remove from heat.\n6. Quickly stir in egg mixture, adding pasta water as needed.\n7. Serve immediately with extra cheese and pepper.',
-    notes: '',
+    notes: 'Use guanciale instead of pancetta for authentic flavor',
   },
   {
     id: 'demo-4',
@@ -64,7 +64,7 @@ const DEMO_RECIPES: Recipe[] = [
     servings: 12,
     ingredients: '• 200g dark chocolate\n• 175g butter\n• 325g sugar\n• 3 eggs\n• 1 tsp vanilla extract\n• 100g flour\n• 50g cocoa powder',
     instructions: '1. Preheat oven to 180°C/350°F.\n2. Melt chocolate and butter together.\n3. Stir in sugar, then eggs and vanilla.\n4. Fold in flour and cocoa powder.\n5. Pour into lined baking tin.\n6. Bake for 25 minutes.\n7. Cool before cutting into squares.',
-    notes: '',
+    notes: 'Add walnuts for extra texture',
   },
 ];
 
@@ -170,57 +170,82 @@ export function RecipeWorkspace({ initialRows }: { initialRows: RecordShape[] })
         {selectedRecipe ? (
           <>
             <div className="recipe-page">
-              <div className="recipe-header">
-                <div>
-                  <h1 className="recipe-title">{selectedRecipe.name}</h1>
-                  <div className="recipe-meta">
+              {/* Centered Title */}
+              <h1 className="recipe-title" style={{ textAlign: 'center', letterSpacing: '2px', textTransform: 'uppercase', borderBottom: '1px solid #eee', paddingBottom: '20px', marginBottom: '30px' }}>
+                {selectedRecipe.name}
+              </h1>
+
+              {/* Two-Column Layout */}
+              <div className="recipe-grid" style={{ display: 'flex', gap: '40px' }}>
+                
+                {/* Left Column: Ingredients & Notes */}
+                <div className="recipe-column-left" style={{ flex: '1' }}>
+                  <div className="recipe-section">
+                    <h3 className="recipe-section-title" style={{ fontFamily: 'serif', fontSize: '1.5rem', marginBottom: '15px' }}>Ingredients</h3>
+                    <div className="recipe-text ingredients-list">
+                      {selectedRecipe.ingredients}
+                    </div>
+                  </div>
+
+                  {selectedRecipe.notes && (
+                    <>
+                      <hr style={{ border: 'none', borderTop: '2px dotted #ccc', margin: '30px 0' }} />
+                      <div className="recipe-section">
+                        <div className="recipe-text" style={{ fontSize: '0.9rem', color: '#555' }}>
+                          <strong>Notes: </strong>{selectedRecipe.notes}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Right Column: Meta, Image, Preparation */}
+                <div className="recipe-column-right" style={{ flex: '2' }}>
+                  
+                  {/* Meta Info Row */}
+                  <div className="recipe-meta-row" style={{ display: 'flex', justifyContent: 'space-around', borderBottom: '1px dotted #ccc', paddingBottom: '20px', marginBottom: '20px', textAlign: 'center' }}>
                     {selectedRecipe.prep_time && (
-                      <div className="recipe-meta-item">
-                        <Clock size={16} className="recipe-meta-icon" />
-                        Prep: {selectedRecipe.prep_time}
+                      <div className="recipe-meta-item" style={{ borderRight: '1px dotted #ccc', paddingRight: '20px', flex: 1 }}>
+                        <div style={{ marginBottom: '8px' }}>🥣</div>
+                        <div style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Prep time:</div>
+                        <div style={{ fontSize: '0.85rem' }}>{selectedRecipe.prep_time}</div>
                       </div>
                     )}
                     {selectedRecipe.cook_time && (
-                      <div className="recipe-meta-item">
-                        <Clock size={16} className="recipe-meta-icon" />
-                        Cook: {selectedRecipe.cook_time}
+                      <div className="recipe-meta-item" style={{ borderRight: '1px dotted #ccc', paddingRight: '20px', flex: 1 }}>
+                        <Clock size={20} style={{ margin: '0 auto 8px auto', display: 'block' }} />
+                        <div style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Cook Time:</div>
+                        <div style={{ fontSize: '0.85rem' }}>{selectedRecipe.cook_time}</div>
                       </div>
                     )}
                     {selectedRecipe.servings && (
-                      <div className="recipe-meta-item">
-                        <Users size={16} className="recipe-meta-icon" />
-                        {selectedRecipe.servings} servings
+                      <div className="recipe-meta-item" style={{ flex: 1 }}>
+                        <Users size={20} style={{ margin: '0 auto 8px auto', display: 'block' }} />
+                        <div style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Servings:</div>
+                        <div style={{ fontSize: '0.85rem' }}>{selectedRecipe.servings}</div>
                       </div>
                     )}
                   </div>
-                </div>
-                {selectedRecipe.image_url && (
-                  <img
-                    src={selectedRecipe.image_url}
-                    alt={selectedRecipe.name}
-                    className="recipe-image"
-                  />
-                )}
-              </div>
 
-              <div className="recipe-content">
-                <div className="recipe-section">
-                  <h3 className="recipe-section-title">Ingredients</h3>
-                  <div className="recipe-text">{selectedRecipe.ingredients}</div>
-                </div>
-                
-                <div className="recipe-section">
-                  <h3 className="recipe-section-title">Instructions</h3>
-                  <div className="recipe-text">{selectedRecipe.instructions}</div>
+                  {/* Recipe Image */}
+                  {selectedRecipe.image_url && (
+                    <img
+                      src={selectedRecipe.image_url}
+                      alt={selectedRecipe.name}
+                      className="recipe-image"
+                      style={{ width: '100%', height: 'auto', objectFit: 'cover', marginBottom: '30px' }}
+                    />
+                  )}
+
+                  {/* Preparation Instructions */}
+                  <div className="recipe-section">
+                    <h3 className="recipe-section-title" style={{ fontFamily: 'serif', fontSize: '1.5rem', marginBottom: '15px' }}>Preparation</h3>
+                    <div className="recipe-text" style={{ lineHeight: '1.6' }}>
+                      {selectedRecipe.instructions}
+                    </div>
+                  </div>
                 </div>
               </div>
-
-              {selectedRecipe.notes && (
-                <div className="recipe-section">
-                  <h3 className="recipe-section-title">Notes</h3>
-                  <div className="recipe-text">{selectedRecipe.notes}</div>
-                </div>
-              )}
             </div>
 
             {/* Pagination */}
