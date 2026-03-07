@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { modules } from '@/lib/modules';
+import { Dumbbell } from 'lucide-react';
 import { MonthProvider } from '@/lib/month-context';
 import {
   LayoutDashboard,
@@ -31,6 +32,7 @@ const MODULE_ICONS: Record<string, LucideIcon> = {
   travel:    Plane,
   wishlist:  Star,
   recipe:    ChefHat,
+  gym:       Dumbbell,
 };
 
 export function Shell({ children }: { children: React.ReactNode }) {

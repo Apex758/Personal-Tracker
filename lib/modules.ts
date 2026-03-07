@@ -55,7 +55,8 @@ export const modules: ModuleConfig[] = [
       { key: 'haircare', label: 'Haircare', type: 'number' },
       { key: 'hand_feet_care', label: 'Hand & Feet Care', type: 'number' },
       { key: 'journal', label: 'Journal', type: 'number' },
-      { key: 'notes', label: 'Notes', type: 'textarea' }
+      { key: 'notes', label: 'Notes', type: 'textarea' },
+      { key: 'water_glasses', label: 'Water (glasses)', type: 'number' },
     ]
   },
   {
@@ -168,7 +169,26 @@ export const modules: ModuleConfig[] = [
       { key: 'instructions', label: 'Instructions', type: 'textarea' },
       { key: 'notes', label: 'Notes', type: 'textarea' }
     ]
-  }
+  },
+  {
+    slug: 'gym',
+    label: 'Gym & Calisthenics',
+    description: 'Track exercises, sets, reps, and progression over time.',
+    table: 'gym_entries',
+    workbookSheet: 'Gym Progressions',
+    primaryField: 'exercise',
+    accent: '#f97316',
+    columns: [
+      { key: 'date', label: 'Date', type: 'date' },
+      { key: 'exercise', label: 'Exercise', type: 'text' },
+      { key: 'category', label: 'Category', type: 'select', options: ['Push', 'Pull', 'Legs', 'Core', 'Cardio', 'Mobility'] },
+      { key: 'sets', label: 'Sets', type: 'number' },
+      { key: 'reps', label: 'Reps', type: 'number' },
+      { key: 'weight_kg', label: 'Weight (kg)', type: 'number' },
+      { key: 'duration_min', label: 'Duration (min)', type: 'number' },
+      { key: 'notes', label: 'Notes', type: 'textarea' },
+    ]
+  },
 ];
 
 export function getModule(slug: string) {

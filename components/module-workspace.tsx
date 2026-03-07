@@ -337,7 +337,7 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
         d.toLocaleString('default', { month: 'long' }) === selectedMonth;
     });
   }, [rows, module, selectedMonth, selectedYear]);
-  
+
   return (
     <div className="page">
       {/* Header */}

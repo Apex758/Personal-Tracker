@@ -21,7 +21,7 @@ type Recipe = RecordShape & {
   notes: string;
 };
 
-const BLANK_RECIPE: Omit<Recipe, 'id'> = {
+const BLANK_RECIPE = {
   name: '', category: '', image_url: '',
   prep_time: '', cook_time: '', servings: 4,
   ingredients: '', instructions: '', notes: '',
@@ -276,7 +276,7 @@ export function RecipeWorkspace({ initialRows }: { initialRows: RecordShape[] })
   );
   const [mode, setMode] = useState<'view' | 'new' | 'edit'>('view');
   const [selectedId, setSelectedId] = useState<string | null>(recipes[0]?.id || null);
-  const [draft, setDraft] = useState<Omit<Recipe, 'id'>>(BLANK_RECIPE);
+  const [draft, setDraft] = useState<typeof BLANK_RECIPE>(BLANK_RECIPE);
   const [currentPage, setCurrentPage] = useState(1);
   const [tocOpen, setTocOpen] = useState(true);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
@@ -349,7 +349,7 @@ export function RecipeWorkspace({ initialRows }: { initialRows: RecordShape[] })
     setMode('view');
   }
 
-  function set(key: keyof Omit<Recipe, 'id'>, value: string | number) {
+  function set(key: string, value: string | number) {
     setDraft((prev) => ({ ...prev, [key]: value }));
   }
 

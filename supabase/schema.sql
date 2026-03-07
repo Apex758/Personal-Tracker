@@ -86,8 +86,22 @@ INSERT INTO recipe_entries (name, category, image_url, prep_time, cook_time, ser
 ('Spaghetti Carbonara', 'Dinner', 'https://images.unsplash.com/photo-1612874742237-6526221588e3?w=400', '10 min', '20 min', 4, '• 400g spaghetti\n• 200g pancetta\n• 4 egg yolks\n• 100g pecorino cheese\n• Black pepper\n• Salt', '1. Cook spaghetti according to package directions.\n2. Cut pancetta into small cubes and fry until crispy.\n3. Mix egg yolks with grated pecorino and black pepper.\n4. Drain pasta, reserving 1 cup pasta water.\n5. Add hot pasta to pancetta pan, remove from heat.\n6. Quickly stir in egg mixture, adding pasta water as needed.\n7. Serve immediately with extra cheese and pepper.');
 
 
+-- Add water column to lifestyle (run if table already exists)
+ALTER TABLE lifestyle_entries ADD COLUMN IF NOT EXISTS water_glasses INTEGER;
 
-
+-- Gym progressions table
+CREATE TABLE IF NOT EXISTS gym_entries (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  date DATE,
+  exercise TEXT,
+  category TEXT,
+  sets INTEGER,
+  reps INTEGER,
+  weight_kg NUMERIC,
+  duration_min INTEGER,
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
 
 
 
