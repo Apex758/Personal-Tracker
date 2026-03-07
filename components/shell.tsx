@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { modules } from '@/lib/modules';
+import { MonthProvider } from '@/lib/month-context';
 import {
   LayoutDashboard,
   Wallet,
@@ -40,7 +41,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Read saved theme on mount
   useEffect(() => {
     try {
       const saved = localStorage.getItem('phq-theme') as 'dark' | 'light' | null;
@@ -86,7 +86,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const isExpanded = isMobile ? mobileOpen : expanded;
 
   return (
-    <>
+    <MonthProvider>
       {isMobile && mobileOpen && (
         <div className="sidebar-backdrop" onClick={() => setMobileOpen(false)} />
       )}
@@ -131,7 +131,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className="sidebar-footer">
-          {/* Theme toggle */}
           <button className="theme-toggle" onClick={toggleTheme} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}>
             <span className="theme-toggle-icon">
               {theme === 'dark' ? <Sun size={16} strokeWidth={1.8} /> : <Moon size={16} strokeWidth={1.8} />}
@@ -156,7 +155,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
               Personal HQ
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              {/* Mobile theme toggle */}
               <button
                 onClick={toggleTheme}
                 style={{
@@ -182,7 +180,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
-    </>
+    </MonthProvider>
   );
 }
 
