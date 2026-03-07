@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useEffect } from 'react';
 import { AiInsights } from '@/components/ai-insights';
 import { AreaChartCard, StackedAreaChartCard } from '@/components/charts';
 import type { ModuleConfig, RecordShape } from '@/lib/types';
@@ -16,7 +16,6 @@ const ACCENT_MAP: Record<string, string> = {
   wishlist: '#c084fc',
 };
 
-// Modules where we want a multi-series stacked chart
 const MULTI_SERIES_MODULES = new Set(['lifestyle', 'finance', 'work', 'skills']);
 
 const SERIES_PALETTE = [
@@ -25,23 +24,21 @@ const SERIES_PALETTE = [
 ];
 
 const PIVOT_CONFIG: Record<string, { groupBy: string; valueKey: string; labelKey?: string }> = {
-  finance: { groupBy: 'financial_nature', valueKey: 'amount' }, // no labelKey → uses date slice
+  finance: { groupBy: 'financial_nature', valueKey: 'amount' },
   work:    { groupBy: 'status',           valueKey: 'hours' },
 };
 
-// Fixed color per financial_nature category so they're consistent
 const FINANCE_NATURE_COLORS: Record<string, string> = {
-  Income:         '#00d4aa',
-  Expense:        '#f06292',
-  Savings:        '#7c6ef7',
-  Frass:          '#f5a623',
-  Debt:           '#ef4444',
+  Income:           '#00d4aa',
+  Expense:          '#f06292',
+  Savings:          '#7c6ef7',
+  Frass:            '#f5a623',
+  Debt:             '#ef4444',
   'Emergency Fund': '#38bdf8',
 };
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
-// Auto-populate derived fields before saving
 function autoEnrich(slug: string, payload: RecordShape): RecordShape {
   if (slug === 'finance' && payload.date) {
     const d = new Date(String(payload.date));
@@ -52,7 +49,6 @@ function autoEnrich(slug: string, payload: RecordShape): RecordShape {
   return payload;
 }
 
-// Fields hidden from the Add Row form (auto-derived from other fields)
 const HIDDEN_FORM_KEYS: Record<string, Set<string>> = {
   finance: new Set(['month']),
 };
@@ -61,6 +57,22 @@ type EditState = Record<string, string | number | null>;
 
 export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig; initialRows: RecordShape[] }) {
   const [rows, setRows] = useState<RecordShape[]>(initialRows);
+
+  // Finance monthly goals — persisted to localStorage
+  const [financeGoals, setFinanceGoals] = useState<Record<string, number>>({});
+  useEffect(() => {
+    try {
+      const s = localStorage.getItem('finance_monthly_goals');
+      if (s) setFinanceGoals(JSON.parse(s));
+    } catch {}
+  }, []);
+
+  function updateGoal(nature: string, value: number) {
+    const next = { ...financeGoals, [nature]: value };
+    setFinanceGoals(next);
+    try { localStorage.setItem('finance_monthly_goals', JSON.stringify(next)); } catch {}
+  }
+
   const [form, setForm] = useState<RecordShape>(() =>
     Object.fromEntries(module.columns.map((col) => [col.key, ''])),
   );
@@ -79,7 +91,6 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
     );
   }, [module.columns, rows]);
 
-  // All numeric columns (excluding obviously useless ones)
   const numericCols = useMemo(
     () => module.columns.filter((c) => c.type === 'number'),
     [module.columns],
@@ -90,17 +101,13 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
     [module.columns],
   );
 
-  // ── Module-specific pivot configs ────────────────────────────────────────
-  // For modules where a single amount col should be pivoted by a category col
   const pivotCfg = PIVOT_CONFIG[module.slug];
 
-  // Pivot chart: group rows by date/label, split into series by a categorical col
   const { pivotData, pivotSeries } = useMemo(() => {
     if (!pivotCfg) return { pivotData: [], pivotSeries: [] };
 
-    const { groupBy, valueKey, labelKey } = pivotCfg;
+    const { groupBy, valueKey } = pivotCfg;
 
-    // Collect all category values for series
     const categorySet = new Set<string>();
     rows.forEach((r) => {
       const cat = String(r[groupBy] ?? '').trim();
@@ -108,15 +115,12 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
     });
     const categories = Array.from(categorySet);
 
-    // For finance (monthly view), scaffold all 12 months so the chart always spans the full year
     const isFinance = module.slug === 'finance';
     const MONTHS_12 = ['2026-01','2026-02','2026-03','2026-04','2026-05','2026-06',
                        '2026-07','2026-08','2026-09','2026-10','2026-11','2026-12'];
 
-    // Group by YYYY-MM from the date column — skip rows with no date
     const map = new Map<string, Record<string, number>>();
 
-    // Pre-seed the map with all months so gaps show as 0, not missing
     if (isFinance) {
       MONTHS_12.forEach((m) => map.set(m, {}));
     }
@@ -146,7 +150,6 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
     return { pivotData: data, pivotSeries: series };
   }, [rows, pivotCfg, dateCol]);
 
-  // Multi-numeric-col stacked chart (lifestyle: many numeric cols per date row)
   const { multiSeriesData, multiSeries } = useMemo(() => {
     if (pivotCfg || numericCols.length < 2 || !MULTI_SERIES_MODULES.has(module.slug)) {
       return { multiSeriesData: [], multiSeries: [] };
@@ -172,7 +175,6 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
     return { multiSeriesData: data, multiSeries: series };
   }, [rows, pivotCfg, dateCol, numericCols, module.slug]);
 
-  // Fallback single-series
   const singleSeriesData = useMemo(() => {
     if (pivotCfg || multiSeriesData.length) return [];
     if (!dateCol || !numericCols[0]) return [];
@@ -288,9 +290,9 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
         </div>
       </div>
 
-      {/* Stat cards — finance gets per-nature breakdown, others get numeric totals */}
+      {/* Stat cards */}
       {module.slug === 'finance' ? (
-        <FinanceStatCards rows={rows} accent={accent} />
+        <FinanceStatCards rows={rows} accent={accent} goals={financeGoals} onGoalChange={updateGoal} />
       ) : numericTotals.length > 0 ? (
         <div className="stat-grid" style={{ marginBottom: 14 }}>
           {numericTotals.map(([key, val]) => (
@@ -304,7 +306,7 @@ export function ModuleWorkspace({ module, initialRows }: { module: ModuleConfig;
         </div>
       ) : null}
 
-      {/* Chart — pivot > multi-series > single */}
+      {/* Chart */}
       {pivotCfg && pivotData.length > 0 ? (
         <div style={{ marginBottom: 14 }}>
           <StackedAreaChartCard
@@ -458,16 +460,27 @@ function StatMini({ label, value, accent }: { label: string; value: string; acce
   );
 }
 
+// ─── Finance-specific natures with goal direction logic ───────────────────────
 const FINANCE_NATURES = [
-  { nature: 'Income',         label: 'Income',         color: '#00d4aa' },
-  { nature: 'Expense',        label: 'Expenses',        color: '#f06292' },
-  { nature: 'Savings',        label: 'Savings',         color: '#7c6ef7' },
-  { nature: 'Debt',           label: 'Debt',            color: '#ef4444' },
-  { nature: 'Emergency Fund', label: 'Emergency Fund',  color: '#38bdf8' },
-  { nature: 'Frass',          label: 'Monthly Goals',   color: '#f5a623' },
+  { nature: 'Income',         label: 'Income',         color: '#00d4aa', lowerIsBetter: false },
+  { nature: 'Expense',        label: 'Expenses',        color: '#f06292', lowerIsBetter: true  },
+  { nature: 'Savings',        label: 'Savings',         color: '#7c6ef7', lowerIsBetter: false },
+  { nature: 'Debt',           label: 'Debt',            color: '#ef4444', lowerIsBetter: true  },
+  { nature: 'Emergency Fund', label: 'Emergency Fund',  color: '#38bdf8', lowerIsBetter: false },
+  { nature: 'Frass',          label: 'Monthly Goals',   color: '#f5a623', lowerIsBetter: false },
 ];
 
-function FinanceStatCards({ rows, accent }: { rows: RecordShape[]; accent: string }) {
+function FinanceStatCards({
+  rows,
+  accent,
+  goals,
+  onGoalChange,
+}: {
+  rows: RecordShape[];
+  accent: string;
+  goals: Record<string, number>;
+  onGoalChange: (nature: string, value: number) => void;
+}) {
   const totals = useMemo(() => {
     const map: Record<string, number> = {};
     rows.forEach((r) => {
@@ -478,16 +491,101 @@ function FinanceStatCards({ rows, accent }: { rows: RecordShape[]; accent: strin
     return map;
   }, [rows]);
 
+  const [editingNature, setEditingNature] = useState<string | null>(null);
+  const [draftGoal, setDraftGoal] = useState('');
+
   return (
     <div className="stat-grid" style={{ marginBottom: 14 }}>
-      {FINANCE_NATURES.map(({ nature, label, color }) => (
-        <StatMini
-          key={nature}
-          label={label}
-          value={formatMoney(totals[nature] ?? 0)}
-          accent={color}
-        />
-      ))}
+      {FINANCE_NATURES.map(({ nature, label, color, lowerIsBetter }) => {
+        const actual = totals[nature] ?? 0;
+        const goal = goals[nature] ?? 0;
+        const isEditing = editingNature === nature;
+
+        // Progress %: raw for labels, capped at 100 for bar width
+        const pct = goal > 0 ? (actual / goal) * 100 : 0;
+        const displayPct = Math.min(pct, 100);
+
+        // Bar colour logic
+        let barColor: string;
+        if (lowerIsBetter) {
+          // Expenses / Debt: green = well under budget, amber = close, red = over
+          barColor = pct > 100 ? '#ef4444' : pct > 80 ? '#f5a623' : '#4ade80';
+        } else {
+          // Income / Savings / Emergency Fund / Frass: green = on track, amber = halfway, red = far off
+          barColor = pct >= 80 ? '#4ade80' : pct >= 40 ? '#f5a623' : '#ef4444';
+        }
+
+        const diff = Math.abs(actual - goal);
+        const statusLabel = goal > 0
+          ? lowerIsBetter
+            ? pct > 100
+              ? `${(pct - 100).toFixed(0)}% over goal`
+              : `${(100 - pct).toFixed(0)}% under goal`
+            : pct > 100
+              ? `${(pct - 100).toFixed(0)}% over goal 🎉`
+              : `${pct.toFixed(0)}% of goal`
+          : null;
+
+        return (
+          <div key={nature} className="stat-card">
+            <div className="stat-accent-bar" style={{ background: `linear-gradient(90deg, ${color}, transparent)` }} />
+            <div className="stat-label">{label}</div>
+            <div className="stat-value" style={{ fontSize: '1.4rem' }}>{formatMoney(actual)}</div>
+
+            {/* Goal row */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+              {isEditing ? (
+                <>
+                  <input
+                    type="number"
+                    value={draftGoal}
+                    autoFocus
+                    onChange={(e) => setDraftGoal(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { onGoalChange(nature, Number(draftGoal)); setEditingNature(null); }
+                      if (e.key === 'Escape') setEditingNature(null);
+                    }}
+                    style={{
+                      width: 90, padding: '2px 6px', fontSize: '0.75rem',
+                      background: 'var(--surface-3)', border: `1px solid ${color}`,
+                      borderRadius: 4, color: 'var(--text)',
+                    }}
+                  />
+                  <button
+                    onClick={() => { onGoalChange(nature, Number(draftGoal)); setEditingNature(null); }}
+                    style={{ fontSize: '0.72rem', color, background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px' }}
+                  >✓</button>
+                  <button
+                    onClick={() => setEditingNature(null)}
+                    style={{ fontSize: '0.72rem', color: 'var(--text-3)', background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px' }}
+                  >✕</button>
+                </>
+              ) : (
+                <button
+                  onClick={() => { setEditingNature(nature); setDraftGoal(String(goals[nature] ?? '')); }}
+                  style={{ fontSize: '0.72rem', color: 'var(--text-3)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}
+                >
+                  {goal > 0 ? `Goal: ${formatMoney(goal)} ✎` : <span style={{ color, opacity: 0.7 }}>+ Set goal</span>}
+                </button>
+              )}
+            </div>
+
+            {/* Progress bar */}
+            {goal > 0 && (
+              <>
+                <div style={{ marginTop: 8, height: 4, background: 'var(--surface-3)', borderRadius: 99, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${displayPct}%`, background: barColor, borderRadius: 99, transition: 'width 0.4s ease' }} />
+                </div>
+                {statusLabel && (
+                  <div style={{ fontSize: '0.68rem', color: barColor, marginTop: 3, fontWeight: 600 }}>
+                    {statusLabel}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
