@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { useMonth } from '@/lib/month-context';
-import { ChevronRight, ChevronLeft, Plus, X } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Plus, X, Copy, ClipboardPaste } from 'lucide-react';
 import type { RecordShape } from '@/lib/types';
 
 type GroceryRow = RecordShape & {
@@ -22,16 +22,47 @@ const CATEGORY_ACCENTS: Record<string, string> = {
 
 function num(v: unknown) { return Number(v) || 0; }
 
+type SavedTemplate = {
+  name: string;
+  savedAt: string;
+  items: Array<{ category: string; item: string; goal_amount: number; actual_amount: number; notes: string }>;
+};
+
 export function GroceryWorkspace({ initialRows }: { initialRows: RecordShape[] }) {
   const [rows, setRows] = useState<GroceryRow[]>(initialRows as GroceryRow[]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Partial<GroceryRow>>({});
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null);
-  const [syncStatus, setSyncStatus] = useState<'idle'|'syncing'|'synced'|'error'>('idle');
   const [form, setForm] = useState({ category: CATEGORY_ORDER[0], item: '', goal_amount: '', actual_amount: '', notes: '' });
 
+  // Template state
+  const [templates, setTemplates] = useState<SavedTemplate[]>([]);
+  const [showTemplateMenu, setShowTemplateMenu] = useState(false);
+  const [templateName, setTemplateName] = useState('');
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const templateMenuRef = useRef<HTMLDivElement>(null);
+
   const { selectedMonth, selectedYear, setSelectedMonth, setSelectedYear, MONTHS, YEAR_OPTIONS } = useMonth();
+
+  // Load templates from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('grocery_templates');
+      if (saved) setTemplates(JSON.parse(saved));
+    } catch {}
+  }, []);
+
+  // Close template menu on outside click
+  useEffect(() => {
+    function handle(e: MouseEvent) {
+      if (templateMenuRef.current && !templateMenuRef.current.contains(e.target as Node)) {
+        setShowTemplateMenu(false);
+      }
+    }
+    document.addEventListener('mousedown', handle);
+    return () => document.removeEventListener('mousedown', handle);
+  }, []);
 
   const displayRows = useMemo(() => {
     return rows.filter((r) => {
@@ -44,7 +75,7 @@ export function GroceryWorkspace({ initialRows }: { initialRows: RecordShape[] }
     });
   }, [rows, selectedMonth, selectedYear]);
 
-  // Panel collapse state (persisted)
+  // Panel collapse state
   const [panelCollapsed, setPanelCollapsed] = useState(false);
 
   useEffect(() => {
@@ -60,37 +91,6 @@ export function GroceryWorkspace({ initialRows }: { initialRows: RecordShape[] }
     try { localStorage.setItem('grocery_panel_collapsed', String(next)); } catch {}
   }
 
-  const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isFirstRender = useRef(true);
-
-  const grandActual = useMemo(() => displayRows.reduce((s, r) => s + num(r.actual_amount), 0), [displayRows]);
-
-  useEffect(() => {
-    if (isFirstRender.current) { isFirstRender.current = false; return; }
-    if (!grandActual) return;
-    setSyncStatus('syncing');
-    if (syncTimer.current) clearTimeout(syncTimer.current);
-    syncTimer.current = setTimeout(async () => {
-      try {
-        const today = new Date().toISOString().slice(0, 10);
-        const res = await fetch('/api/records/finance', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            date: today, financial_nature: 'Expense', account_type: '',
-            category: 'Groceries', payment_method: '', project: '',
-            amount: grandActual,
-            month: new Date().toLocaleString('default', { month: 'long' }),
-            notes: 'Auto-synced from Grocery Budget',
-          }),
-        });
-        setSyncStatus(res.ok ? 'synced' : 'error');
-      } catch { setSyncStatus('error'); }
-      setTimeout(() => setSyncStatus('idle'), 3000);
-    }, 1500);
-    return () => { if (syncTimer.current) clearTimeout(syncTimer.current); };
-  }, [grandActual]);
-
   function showMsg(text: string, ok: boolean) { setMessage({ text, ok }); setTimeout(() => setMessage(null), 3000); }
 
   async function refresh() {
@@ -100,9 +100,13 @@ export function GroceryWorkspace({ initialRows }: { initialRows: RecordShape[] }
   }
 
   async function saveRow() {
+    const monthIndex = MONTHS.indexOf(selectedMonth);
+    const pad = String(monthIndex + 1).padStart(2, '0');
+    const date = `${selectedYear}-${pad}-01`;
+
     const res = await fetch('/api/records/grocery', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ date: new Date().toISOString().slice(0,10), category: form.category, item: form.item, goal_amount: Number(form.goal_amount)||0, actual_amount: Number(form.actual_amount)||0, notes: form.notes }),
+      body: JSON.stringify({ date, category: form.category, item: form.item, goal_amount: Number(form.goal_amount)||0, actual_amount: Number(form.actual_amount)||0, notes: form.notes }),
     });
     const data = await res.json();
     if (!res.ok) { showMsg(data.error||'Save failed.', false); return; }
@@ -136,6 +140,54 @@ export function GroceryWorkspace({ initialRows }: { initialRows: RecordShape[] }
     } finally { setSaving(false); }
   }
 
+  // ─── Template functions ────────────────────────────────────────────────────
+
+  function saveTemplate() {
+    if (!templateName.trim()) return;
+    const items = displayRows.map((r) => ({
+      category: String(r.category || ''),
+      item: String(r.item || ''),
+      goal_amount: num(r.goal_amount),
+      actual_amount: 0, // reset actuals when saving template
+      notes: String(r.notes || ''),
+    }));
+    const newTemplate: SavedTemplate = {
+      name: templateName.trim(),
+      savedAt: new Date().toLocaleDateString(),
+      items,
+    };
+    const updated = [newTemplate, ...templates.filter(t => t.name !== newTemplate.name)];
+    setTemplates(updated);
+    try { localStorage.setItem('grocery_templates', JSON.stringify(updated)); } catch {}
+    setShowSaveDialog(false);
+    setTemplateName('');
+    showMsg(`Saved as "${newTemplate.name}" ✓`, true);
+  }
+
+  async function pasteTemplate(template: SavedTemplate) {
+    setShowTemplateMenu(false);
+    const monthIndex = MONTHS.indexOf(selectedMonth);
+    const pad = String(monthIndex + 1).padStart(2, '0');
+    const date = `${selectedYear}-${pad}-01`;
+
+    let count = 0;
+    for (const item of template.items) {
+      const res = await fetch('/api/records/grocery', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date, category: item.category, item: item.item, goal_amount: item.goal_amount, actual_amount: 0, notes: item.notes }),
+      });
+      if (res.ok) count++;
+    }
+    await refresh();
+    showMsg(`Pasted ${count} items from "${template.name}" ✓`, true);
+  }
+
+  function deleteTemplate(name: string) {
+    const updated = templates.filter(t => t.name !== name);
+    setTemplates(updated);
+    try { localStorage.setItem('grocery_templates', JSON.stringify(updated)); } catch {}
+  }
+
   const grouped = useMemo(() => {
     const map = new Map<string, GroceryRow[]>();
     CATEGORY_ORDER.forEach((cat) => map.set(cat, []));
@@ -144,10 +196,9 @@ export function GroceryWorkspace({ initialRows }: { initialRows: RecordShape[] }
   }, [displayRows]);
 
   const grandGoal = useMemo(() => displayRows.reduce((s,r) => s+num(r.goal_amount),0), [displayRows]);
+  const grandActual = useMemo(() => displayRows.reduce((s,r) => s+num(r.actual_amount),0), [displayRows]);
   const grandVariance = grandGoal - grandActual;
   const budgetPct = grandGoal > 0 ? Math.min((grandActual/grandGoal)*100,100) : 0;
-
-  const syncBanner = { idle:null, syncing:{text:'Syncing to Finance…',color:'#f5a623'}, synced:{text:'✓ Finance updated',color:'#4ade80'}, error:{text:'⚠ Sync failed',color:'#ef4444'} }[syncStatus];
 
   return (
     <div className="page" style={{ paddingBottom: 40 }}>
@@ -156,9 +207,10 @@ export function GroceryWorkspace({ initialRows }: { initialRows: RecordShape[] }
         <div className="hero-meta">
           <p className="eyebrow">Module</p>
           <h1 className="page-title" style={{ color:'#4ade80' }}>Grocery Budget</h1>
-          <p className="muted small" style={{ maxWidth:440, marginTop:4 }}>Actual totals sync to Finance automatically when you make changes.</p>
+          <p className="muted small" style={{ maxWidth:440, marginTop:4 }}>Each month keeps its own list. Save any month as a template to reuse it.</p>
         </div>
-        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
+          {/* Month / Year pickers */}
           <select
             value={selectedMonth}
             onChange={(e) => setSelectedMonth(e.target.value)}
@@ -173,14 +225,111 @@ export function GroceryWorkspace({ initialRows }: { initialRows: RecordShape[] }
           >
             {YEAR_OPTIONS.map((y) => <option key={y} value={y}>{y}</option>)}
           </select>
-          {syncBanner && (
-            <div style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 14px', borderRadius:99, background:`${syncBanner.color}18`, border:`1px solid ${syncBanner.color}40` }}>
-              {syncStatus==='syncing' && <span style={{ width:8,height:8,borderRadius:'50%',background:syncBanner.color,display:'inline-block',animation:'pulse 1s infinite' }} />}
-              <span style={{ fontSize:'0.82rem', color:syncBanner.color, fontWeight:600 }}>{syncBanner.text}</span>
-            </div>
-          )}
+
+          {/* Template controls */}
+          <button
+            onClick={() => { setTemplateName(`${selectedMonth} ${selectedYear}`); setShowSaveDialog(true); }}
+            disabled={displayRows.length === 0}
+            style={{
+              display:'flex', alignItems:'center', gap:6,
+              padding:'6px 14px', borderRadius:8, cursor:'pointer',
+              border:'1px solid var(--border)', background:'var(--surface-2)',
+              color: displayRows.length === 0 ? 'var(--text-3)' : 'var(--text)',
+              fontSize:'0.82rem', fontWeight:600, transition:'all 0.15s',
+            }}
+            title="Save current list as template"
+          >
+            <Copy size={14} /> Save as template
+          </button>
+
+          <div style={{ position:'relative' }} ref={templateMenuRef}>
+            <button
+              onClick={() => setShowTemplateMenu(v => !v)}
+              disabled={templates.length === 0}
+              style={{
+                display:'flex', alignItems:'center', gap:6,
+                padding:'6px 14px', borderRadius:8, cursor:'pointer',
+                border:`1px solid ${templates.length > 0 ? '#4ade80' : 'var(--border)'}`,
+                background: templates.length > 0 ? 'rgba(74,222,128,0.08)' : 'var(--surface-2)',
+                color: templates.length > 0 ? '#4ade80' : 'var(--text-3)',
+                fontSize:'0.82rem', fontWeight:600, transition:'all 0.15s',
+              }}
+              title="Paste a saved template into this month"
+            >
+              <ClipboardPaste size={14} /> Paste template {templates.length > 0 && `(${templates.length})`}
+            </button>
+
+            {showTemplateMenu && templates.length > 0 && (
+              <div style={{
+                position:'absolute', top:'calc(100% + 6px)', right:0, zIndex:50,
+                background:'var(--surface)', border:'1px solid var(--border)',
+                borderRadius:10, minWidth:220, boxShadow:'0 8px 32px rgba(0,0,0,0.3)',
+                overflow:'hidden',
+              }}>
+                <div style={{ padding:'8px 14px 6px', fontSize:'0.7rem', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', color:'var(--text-3)', borderBottom:'1px solid var(--border)' }}>
+                  Saved templates
+                </div>
+                {templates.map((t) => (
+                  <div key={t.name} style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 10px', borderBottom:'1px solid var(--border)' }}>
+                    <button
+                      onClick={() => pasteTemplate(t)}
+                      style={{
+                        flex:1, textAlign:'left', background:'none', border:'none',
+                        cursor:'pointer', color:'var(--text)', fontSize:'0.84rem', padding:'2px 4px',
+                        borderRadius:6, transition:'background 0.15s',
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-2)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                    >
+                      <div style={{ fontWeight:600 }}>{t.name}</div>
+                      <div style={{ fontSize:'0.72rem', color:'var(--text-3)' }}>{t.items.length} items · saved {t.savedAt}</div>
+                    </button>
+                    <button onClick={() => deleteTemplate(t.name)} style={{ background:'none', border:'none', color:'#ef4444', cursor:'pointer', padding:'4px', borderRadius:4, fontSize:'0.75rem' }} title="Delete template">✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* Save template dialog */}
+      {showSaveDialog && (
+        <div style={{
+          position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', zIndex:100,
+          display:'flex', alignItems:'center', justifyContent:'center',
+        }}>
+          <div style={{
+            background:'var(--surface)', border:'1px solid var(--border)',
+            borderRadius:14, padding:28, width:340, boxShadow:'0 16px 48px rgba(0,0,0,0.4)',
+          }}>
+            <p style={{ fontFamily:'var(--font-display)', fontWeight:700, fontSize:'1.1rem', marginBottom:16 }}>Save as Template</p>
+            <p className="muted small" style={{ marginBottom:14 }}>Saves {displayRows.length} items. Actuals reset to 0 so you start fresh each month.</p>
+            <div className="field" style={{ marginBottom:18 }}>
+              <label>Template name</label>
+              <input
+                autoFocus
+                type="text"
+                value={templateName}
+                onChange={e => setTemplateName(e.target.value)}
+                onKeyDown={e => { if(e.key==='Enter') saveTemplate(); if(e.key==='Escape') setShowSaveDialog(false); }}
+                placeholder="e.g. Standard weekly shop"
+              />
+            </div>
+            <div style={{ display:'flex', gap:10, justifyContent:'flex-end' }}>
+              <button className="btn btn-secondary" onClick={() => setShowSaveDialog(false)}>Cancel</button>
+              <button
+                className="btn btn-primary"
+                style={{ background:'#4ade80', borderColor:'#4ade80', color:'#000' }}
+                onClick={saveTemplate}
+                disabled={!templateName.trim()}
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Stat cards */}
       <div className="stat-grid" style={{ marginBottom:14 }}>
@@ -214,6 +363,19 @@ export function GroceryWorkspace({ initialRows }: { initialRows: RecordShape[] }
 
       {message && <div className={`msg ${message.ok?'msg-ok':'msg-err'}`} style={{ marginBottom:12 }}>{message.text}</div>}
 
+      {/* Empty state for this month */}
+      {displayRows.length === 0 && (
+        <div style={{
+          padding:'32px 24px', textAlign:'center', color:'var(--text-3)',
+          background:'var(--surface-2)', borderRadius:'var(--radius)',
+          border:'1px dashed var(--border)', marginBottom:14,
+        }}>
+          <div style={{ fontSize:'1.5rem', marginBottom:8 }}>🛒</div>
+          <p style={{ fontWeight:600, color:'var(--text-2)', marginBottom:4 }}>No items for {selectedMonth} {selectedYear}</p>
+          <p className="small">Add items below, or paste a saved template to get started.</p>
+        </div>
+      )}
+
       {/* ─── SPLIT LAYOUT ─── */}
       <div style={{
         display: 'grid',
@@ -224,83 +386,88 @@ export function GroceryWorkspace({ initialRows }: { initialRows: RecordShape[] }
       }}>
 
         {/* LEFT: Table */}
-        <div className="card" style={{ padding:0, overflow:'hidden', minWidth: 0 }}>
-          <div className="table-wrap" style={{ maxHeight: 560, borderRadius: 'var(--radius)', border: 'none' }}>
-            <table>
-              <thead>
-                <tr>
-                  <th style={{ width:160 }}>Category</th>
-                  <th>Item</th>
-                  <th style={{ textAlign:'right',width:110 }}>Goal (XCD)</th>
-                  <th style={{ textAlign:'right',width:110 }}>Actual (XCD)</th>
-                  <th style={{ textAlign:'right',width:90 }}>Variance</th>
-                  <th style={{ width:96 }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Array.from(grouped.entries()).map(([cat, catRows]) => {
-                  if (!catRows.length) return null;
-                  const catGoal = catRows.reduce((s,r)=>s+num(r.goal_amount),0);
-                  const catActual = catRows.reduce((s,r)=>s+num(r.actual_amount),0);
-                  const catVar = catGoal - catActual;
-                  const accent = CATEGORY_ACCENTS[cat]||'#00d4aa';
-                  return [
-                    ...catRows.map((row) => {
-                      const isEditing = editingId===row.id;
-                      const variance = num(row.goal_amount)-num(row.actual_amount);
-                      return (
-                        <tr key={row.id}>
-                          <td><span className="badge" style={{ background:`${accent}18`,color:accent,fontSize:'0.7rem' }}>{cat}</span></td>
-                          <td style={{ fontWeight:500,color:'var(--text)' }}>
-                            {isEditing
-                              ? <input type="text" value={String(draft.item??'')} onChange={(e)=>setDraft((p)=>({...p,item:e.target.value}))} style={{ minWidth:120 }} />
-                              : row.item}
-                          </td>
-                          <td style={{ textAlign:'right' }}>
-                            {isEditing
-                              ? <input type="number" value={String(draft.goal_amount??0)} onChange={(e)=>setDraft((p)=>({...p,goal_amount:Number(e.target.value)}))} style={{ minWidth:70,textAlign:'right' }} />
-                              : num(row.goal_amount)>0?num(row.goal_amount).toFixed(0):<span style={{ color:'var(--text-3)' }}>—</span>}
-                          </td>
-                          <td style={{ textAlign:'right' }}>
-                            {isEditing
-                              ? <input type="number" value={String(draft.actual_amount??0)} onChange={(e)=>setDraft((p)=>({...p,actual_amount:Number(e.target.value)}))} style={{ minWidth:70,textAlign:'right' }} />
-                              : num(row.actual_amount)>0?num(row.actual_amount).toFixed(0):<span style={{ color:'var(--text-3)' }}>—</span>}
-                          </td>
-                          <td style={{ textAlign:'right',color:variance>=0?'#4ade80':'#ef4444',fontFamily:'monospace',fontSize:'0.82rem' }}>
-                            {num(row.goal_amount)||num(row.actual_amount)?(variance>=0?'+':'')+variance.toFixed(0):<span style={{ color:'var(--text-3)' }}>—</span>}
-                          </td>
-                          <td>
-                            <div className="td-actions">
+        {displayRows.length > 0 && (
+          <div className="card" style={{ padding:0, overflow:'hidden', minWidth: 0 }}>
+            <div className="table-wrap" style={{ maxHeight: 560, borderRadius: 'var(--radius)', border: 'none' }}>
+              <table>
+                <thead>
+                  <tr>
+                    <th style={{ width:160 }}>Category</th>
+                    <th>Item</th>
+                    <th style={{ textAlign:'right',width:110 }}>Goal (XCD)</th>
+                    <th style={{ textAlign:'right',width:110 }}>Actual (XCD)</th>
+                    <th style={{ textAlign:'right',width:90 }}>Variance</th>
+                    <th style={{ width:96 }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Array.from(grouped.entries()).map(([cat, catRows]) => {
+                    if (!catRows.length) return null;
+                    const catGoal = catRows.reduce((s,r)=>s+num(r.goal_amount),0);
+                    const catActual = catRows.reduce((s,r)=>s+num(r.actual_amount),0);
+                    const catVar = catGoal - catActual;
+                    const accent = CATEGORY_ACCENTS[cat]||'#00d4aa';
+                    return [
+                      ...catRows.map((row) => {
+                        const isEditing = editingId===row.id;
+                        const variance = num(row.goal_amount)-num(row.actual_amount);
+                        return (
+                          <tr key={row.id}>
+                            <td><span className="badge" style={{ background:`${accent}18`,color:accent,fontSize:'0.7rem' }}>{cat}</span></td>
+                            <td style={{ fontWeight:500,color:'var(--text)' }}>
                               {isEditing
-                                ? <><button className="btn-save" onClick={saveEdit} disabled={saving}>{saving?'…':'Save'}</button><button className="btn-cancel" onClick={()=>{setEditingId(null);setDraft({});}}>✕</button></>
-                                : <><button className="btn-edit" onClick={()=>{setEditingId(row.id??null);setDraft({...row});}}>Edit</button><button className="btn-danger" onClick={()=>deleteRow(row.id)}>✕</button></>
-                              }
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    }),
-                    <tr key={`sub-${cat}`} style={{ background:'var(--surface-2)' }}>
-                      <td colSpan={2} style={{ fontWeight:700,fontSize:'0.75rem',textTransform:'uppercase',letterSpacing:'0.06em',color:accent }}>{cat} Subtotal</td>
-                      <td style={{ textAlign:'right',fontWeight:700,fontFamily:'monospace',color:'var(--text)',fontSize:'0.82rem' }}>{catGoal>0?catGoal.toFixed(0):'—'}</td>
-                      <td style={{ textAlign:'right',fontWeight:700,fontFamily:'monospace',color:'var(--text)',fontSize:'0.82rem' }}>{catActual>0?catActual.toFixed(0):'—'}</td>
-                      <td style={{ textAlign:'right',fontWeight:700,fontFamily:'monospace',color:catVar>=0?'#4ade80':'#ef4444',fontSize:'0.82rem' }}>{catGoal||catActual?(catVar>=0?'+':'')+catVar.toFixed(0):'—'}</td>
-                      <td />
-                    </tr>,
-                  ];
-                })}
-                {/* Grand total row */}
-                <tr style={{ background:'var(--surface-3)',borderTop:'2px solid var(--border-strong)' }}>
-                  <td colSpan={2} style={{ fontWeight:800,fontSize:'0.86rem',textTransform:'uppercase',letterSpacing:'0.06em',color:'var(--text)' }}>TOTAL</td>
-                  <td style={{ textAlign:'right',fontWeight:800,fontFamily:'monospace',fontSize:'0.92rem',color:'#4ade80' }}>{grandGoal.toFixed(0)}</td>
-                  <td style={{ textAlign:'right',fontWeight:800,fontFamily:'monospace',fontSize:'0.92rem',color:grandActual>grandGoal?'#ef4444':'var(--text)' }}>{grandActual.toFixed(0)}</td>
-                  <td style={{ textAlign:'right',fontWeight:800,fontFamily:'monospace',fontSize:'0.92rem',color:grandVariance>=0?'#4ade80':'#ef4444' }}>{(grandVariance>=0?'+':'')+grandVariance.toFixed(0)}</td>
-                  <td />
-                </tr>
-              </tbody>
-            </table>
+                                ? <input type="text" value={String(draft.item??'')} onChange={(e)=>setDraft((p)=>({...p,item:e.target.value}))} style={{ minWidth:120 }} />
+                                : row.item}
+                            </td>
+                            <td style={{ textAlign:'right' }}>
+                              {isEditing
+                                ? <input type="number" value={String(draft.goal_amount??0)} onChange={(e)=>setDraft((p)=>({...p,goal_amount:Number(e.target.value)}))} style={{ minWidth:70,textAlign:'right' }} />
+                                : num(row.goal_amount)>0?num(row.goal_amount).toFixed(0):<span style={{ color:'var(--text-3)' }}>—</span>}
+                            </td>
+                            <td style={{ textAlign:'right' }}>
+                              {isEditing
+                                ? <input type="number" value={String(draft.actual_amount??0)} onChange={(e)=>setDraft((p)=>({...p,actual_amount:Number(e.target.value)}))} style={{ minWidth:70,textAlign:'right' }} />
+                                : num(row.actual_amount)>0?num(row.actual_amount).toFixed(0):<span style={{ color:'var(--text-3)' }}>—</span>}
+                            </td>
+                            <td style={{ textAlign:'right',color:variance>=0?'#4ade80':'#ef4444',fontFamily:'monospace',fontSize:'0.82rem' }}>
+                              {num(row.goal_amount)||num(row.actual_amount)?(variance>=0?'+':'')+variance.toFixed(0):<span style={{ color:'var(--text-3)' }}>—</span>}
+                            </td>
+                            <td>
+                              <div className="td-actions">
+                                {isEditing
+                                  ? <><button className="btn-save" onClick={saveEdit} disabled={saving}>{saving?'…':'Save'}</button><button className="btn-cancel" onClick={()=>{setEditingId(null);setDraft({});}}>✕</button></>
+                                  : <><button className="btn-edit" onClick={()=>{setEditingId(row.id??null);setDraft({...row});}}>Edit</button><button className="btn-danger" onClick={()=>deleteRow(row.id)}>✕</button></>
+                                }
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      }),
+                      <tr key={`sub-${cat}`} style={{ background:'var(--surface-2)' }}>
+                        <td colSpan={2} style={{ fontWeight:700,fontSize:'0.75rem',textTransform:'uppercase',letterSpacing:'0.06em',color:accent }}>{cat} Subtotal</td>
+                        <td style={{ textAlign:'right',fontWeight:700,fontFamily:'monospace',color:'var(--text)',fontSize:'0.82rem' }}>{catGoal>0?catGoal.toFixed(0):'—'}</td>
+                        <td style={{ textAlign:'right',fontWeight:700,fontFamily:'monospace',color:'var(--text)',fontSize:'0.82rem' }}>{catActual>0?catActual.toFixed(0):'—'}</td>
+                        <td style={{ textAlign:'right',fontWeight:700,fontFamily:'monospace',color:catVar>=0?'#4ade80':'#ef4444',fontSize:'0.82rem' }}>{catGoal||catActual?(catVar>=0?'+':'')+catVar.toFixed(0):'—'}</td>
+                        <td />
+                      </tr>,
+                    ];
+                  })}
+                  {/* Grand total row */}
+                  <tr style={{ background:'var(--surface-3)',borderTop:'2px solid var(--border-strong)' }}>
+                    <td colSpan={2} style={{ fontWeight:800,fontSize:'0.86rem',textTransform:'uppercase',letterSpacing:'0.06em',color:'var(--text)' }}>TOTAL</td>
+                    <td style={{ textAlign:'right',fontWeight:800,fontFamily:'monospace',fontSize:'0.92rem',color:'#4ade80' }}>{grandGoal.toFixed(0)}</td>
+                    <td style={{ textAlign:'right',fontWeight:800,fontFamily:'monospace',fontSize:'0.92rem',color:grandActual>grandGoal?'#ef4444':'var(--text)' }}>{grandActual.toFixed(0)}</td>
+                    <td style={{ textAlign:'right',fontWeight:800,fontFamily:'monospace',fontSize:'0.92rem',color:grandVariance>=0?'#4ade80':'#ef4444' }}>{(grandVariance>=0?'+':'')+grandVariance.toFixed(0)}</td>
+                    <td />
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* If no rows, left column still takes space so panel sits right */}
+        {displayRows.length === 0 && <div />}
 
         {/* RIGHT: Add Item Panel + collapse toggle */}
         <div style={{ display:'flex', flexDirection:'column', gap:8, minWidth:0 }}>
@@ -311,26 +478,18 @@ export function GroceryWorkspace({ initialRows }: { initialRows: RecordShape[] }
             title={panelCollapsed ? 'Expand add panel' : 'Collapse add panel'}
             style={{
               alignSelf: panelCollapsed ? 'center' : 'flex-end',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 36,
-              height: 36,
-              borderRadius: 10,
-              border: '1px solid var(--border)',
-              background: 'var(--surface)',
-              color: 'var(--text-2)',
-              cursor: 'pointer',
-              backdropFilter: 'blur(12px)',
-              WebkitBackdropFilter: 'blur(12px)',
-              transition: 'all 0.2s',
-              flexShrink: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 36, height: 36, borderRadius: 10,
+              border: '1px solid var(--border)', background: 'var(--surface)',
+              color: 'var(--text-2)', cursor: 'pointer',
+              backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+              transition: 'all 0.2s', flexShrink: 0,
             }}
           >
             {panelCollapsed ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
           </button>
 
-          {/* Panel content — smooth collapse */}
+          {/* Panel content */}
           <div style={{
             overflow: 'hidden',
             maxHeight: panelCollapsed ? 0 : '900px',
@@ -344,9 +503,9 @@ export function GroceryWorkspace({ initialRows }: { initialRows: RecordShape[] }
                   <Plus size={16} color="#4ade80" />
                   <p className="section-title" style={{ fontSize:'0.95rem' }}>Add Item</p>
                 </div>
+                <span style={{ fontSize:'0.72rem', color:'var(--text-3)', fontWeight:600 }}>{selectedMonth} {selectedYear}</span>
               </div>
 
-              {/* Category */}
               <div className="field" style={{ marginBottom: 10 }}>
                 <label>Category</label>
                 <select value={form.category} onChange={(e)=>setForm((f)=>({...f,category:e.target.value}))}>
@@ -354,7 +513,6 @@ export function GroceryWorkspace({ initialRows }: { initialRows: RecordShape[] }
                 </select>
               </div>
 
-              {/* Item name */}
               <div className="field" style={{ marginBottom: 10 }}>
                 <label>Item Name</label>
                 <input
@@ -366,40 +524,21 @@ export function GroceryWorkspace({ initialRows }: { initialRows: RecordShape[] }
                 />
               </div>
 
-              {/* Goal amount */}
               <div className="field" style={{ marginBottom: 10 }}>
                 <label>Goal Amount (XCD)</label>
-                <input
-                  type="number"
-                  value={form.goal_amount}
-                  onChange={(e)=>setForm((f)=>({...f,goal_amount:e.target.value}))}
-                  placeholder="0"
-                />
+                <input type="number" value={form.goal_amount} onChange={(e)=>setForm((f)=>({...f,goal_amount:e.target.value}))} placeholder="0" />
               </div>
 
-              {/* Actual amount */}
               <div className="field" style={{ marginBottom: 10 }}>
                 <label>Actual Amount (XCD)</label>
-                <input
-                  type="number"
-                  value={form.actual_amount}
-                  onChange={(e)=>setForm((f)=>({...f,actual_amount:e.target.value}))}
-                  placeholder="0"
-                />
+                <input type="number" value={form.actual_amount} onChange={(e)=>setForm((f)=>({...f,actual_amount:e.target.value}))} placeholder="0" />
               </div>
 
-              {/* Notes */}
               <div className="field" style={{ marginBottom: 16 }}>
                 <label>Notes</label>
-                <input
-                  type="text"
-                  value={form.notes}
-                  onChange={(e)=>setForm((f)=>({...f,notes:e.target.value}))}
-                  placeholder="Optional"
-                />
+                <input type="text" value={form.notes} onChange={(e)=>setForm((f)=>({...f,notes:e.target.value}))} placeholder="Optional" />
               </div>
 
-              {/* Category colour preview */}
               {form.category && (
                 <div style={{
                   display:'flex', alignItems:'center', gap:8, marginBottom:14,
@@ -438,22 +577,13 @@ export function GroceryWorkspace({ initialRows }: { initialRows: RecordShape[] }
             <div
               onClick={togglePanel}
               style={{
-                writingMode: 'vertical-rl',
-                textOrientation: 'mixed',
-                fontSize: '0.72rem',
-                fontWeight: 700,
-                letterSpacing: '0.12em',
-                textTransform: 'uppercase',
-                color: '#4ade80',
-                cursor: 'pointer',
-                padding: '12px 6px',
-                borderRadius: 8,
-                background: 'rgba(74,222,128,0.08)',
-                border: '1px solid rgba(74,222,128,0.2)',
-                backdropFilter: 'blur(12px)',
-                WebkitBackdropFilter: 'blur(12px)',
-                textAlign: 'center',
-                userSelect: 'none',
+                writingMode: 'vertical-rl', textOrientation: 'mixed',
+                fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.12em',
+                textTransform: 'uppercase', color: '#4ade80', cursor: 'pointer',
+                padding: '12px 6px', borderRadius: 8,
+                background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)',
+                backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+                textAlign: 'center', userSelect: 'none',
               }}
             >
               Add Item
