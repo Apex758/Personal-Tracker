@@ -373,7 +373,7 @@ function PantryView() {
     [pantry.available],
   );
 
-  function update(next: PantryState) { setPantry(next); savePantry(next); }
+
 
   function addToAvailable(category: string, item: string) {
     const current = pantry.available[category] ?? [];
