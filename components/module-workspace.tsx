@@ -8,6 +8,7 @@ import { AreaChartCard, StackedAreaChartCard } from '@/components/charts';
 import type { ModuleConfig, RecordShape } from '@/lib/types';
 import { formatMoney, formatNumber, titleCase } from '@/lib/format';
 import { useMonth } from '@/lib/month-context';
+import { GlareHover } from '@/components/GlareHover';
 
 
 const MONEY_KEYS = new Set(['amount', 'income', 'expense', 'budget', 'estimated_cost', 'actual_cost', 'target_budget', 'expected_price', 'actual_price', 'expected_income', 'actual_income']);
@@ -851,11 +852,18 @@ function SkillsProgressChart({ rows, accent }: { rows: RecordShape[]; accent: st
 
 function StatMini({ label, value, accent }: { label: string; value: string; accent: string }) {
   return (
-    <div className="stat-card">
+    <GlareHover
+      glareColor="#ffffff"
+      glareOpacity={0.18}
+      glareAngle={-30}
+      glareSize={300}
+      transitionDuration={700}
+      className="stat-card"
+    >
       <div className="stat-accent-bar" style={{ background: `linear-gradient(90deg, ${accent}, transparent)` }} />
       <div className="stat-label">{label}</div>
       <div className="stat-value" style={{ fontSize: '1.4rem' }}>{value}</div>
-    </div>
+    </GlareHover>
   );
 }
 

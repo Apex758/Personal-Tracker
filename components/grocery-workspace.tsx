@@ -4,6 +4,7 @@ import { useMemo, useState, useEffect, useRef } from 'react';
 import { useMonth } from '@/lib/month-context';
 import { ChevronRight, ChevronLeft, Plus, X, Copy, ClipboardPaste } from 'lucide-react';
 import type { RecordShape } from '@/lib/types';
+import { GlareHover } from '@/components/GlareHover';
 
 type GroceryRow = RecordShape & {
   category: string;
@@ -333,32 +334,35 @@ export function GroceryWorkspace({ initialRows }: { initialRows: RecordShape[] }
 
       {/* Stat cards */}
       <div className="stat-grid" style={{ marginBottom:14 }}>
-        <div className="stat-card">
+        <GlareHover glareColor="#ffffff" glareOpacity={0.18} glareAngle={-30} glareSize={300} transitionDuration={700} className="stat-card">
           <div className="stat-accent-bar" style={{ background:'linear-gradient(90deg,#4ade80,transparent)' }} />
           <div className="stat-label">Budget Goal</div>
           <div className="stat-value" style={{ fontSize:'1.4rem' }}>XCD {grandGoal.toFixed(0)}</div>
-        </div>
-        <div className="stat-card">
+        </GlareHover>
+
+        <GlareHover glareColor="#ffffff" glareOpacity={0.18} glareAngle={-30} glareSize={300} transitionDuration={700} className="stat-card">
           <div className="stat-accent-bar" style={{ background:'linear-gradient(90deg,#f5a623,transparent)' }} />
           <div className="stat-label">Actual Spend</div>
           <div className="stat-value" style={{ fontSize:'1.4rem', color:grandActual>grandGoal?'#ef4444':undefined }}>XCD {grandActual.toFixed(0)}</div>
-        </div>
-        <div className="stat-card">
+        </GlareHover>
+
+        <GlareHover glareColor="#ffffff" glareOpacity={0.18} glareAngle={-30} glareSize={300} transitionDuration={700} className="stat-card">
           <div className="stat-accent-bar" style={{ background:`linear-gradient(90deg,${grandVariance>=0?'#4ade80':'#ef4444'},transparent)` }} />
           <div className="stat-label">Remaining</div>
           <div className="stat-value" style={{ fontSize:'1.4rem', color:grandVariance>=0?'#4ade80':'#ef4444' }}>
             XCD {Math.abs(grandVariance).toFixed(0)}
             <span style={{ fontSize:'0.75rem',marginLeft:4,color:'var(--text-3)' }}>{grandVariance>=0?'under':'over'}</span>
           </div>
-        </div>
-        <div className="stat-card">
+        </GlareHover>
+
+        <GlareHover glareColor="#ffffff" glareOpacity={0.18} glareAngle={-30} glareSize={300} transitionDuration={700} className="stat-card">
           <div className="stat-accent-bar" style={{ background:'linear-gradient(90deg,#38bdf8,transparent)' }} />
           <div className="stat-label">Budget Used</div>
           <div className="stat-value" style={{ fontSize:'1.4rem' }}>{budgetPct.toFixed(0)}%</div>
           <div style={{ marginTop:8,height:4,background:'var(--surface-3)',borderRadius:99,overflow:'hidden' }}>
             <div style={{ height:'100%',width:`${budgetPct}%`,background:budgetPct>90?'#ef4444':budgetPct>70?'#f5a623':'#4ade80',borderRadius:99,transition:'width 0.4s ease' }} />
           </div>
-        </div>
+        </GlareHover>
       </div>
 
       {message && <div className={`msg ${message.ok?'msg-ok':'msg-err'}`} style={{ marginBottom:12 }}>{message.text}</div>}

@@ -50,16 +50,21 @@ export type YearlySummaryRow = {
 };
 
 export async function getDashboardData() {
-  const [finance, lifestyle, skills, work, travel, wishlist] = await Promise.all(
-    modules.map((module) => getRows(module.slug)),
-  );
+  // Fetch each module by slug — safe against module array reordering
+  const [finance, lifestyle, skills, work, travel, wishlist] = await Promise.all([
+    getRows('finance'),
+    getRows('lifestyle'),
+    getRows('skills'),
+    getRows('work'),
+    getRows('travel'),
+    getRows('wishlist'),
+  ]);
 
   const financeByMonthMap = new Map<string, number>();
   let income = 0;
   let expense = 0;
   let savings = 0;
 
-  // Yearly summary: keyed by month name
   const yearlyMap = new Map<string, Record<string, number>>();
   MONTH_ORDER.forEach((m) => yearlyMap.set(m, { Income: 0, Expense: 0, Savings: 0, Frass: 0, Debt: 0, 'Emergency Fund': 0 }));
 
@@ -138,13 +143,15 @@ export async function getDashboardData() {
       skillHours,
     },
     charts: {
-    financeByMonth: MONTH_ORDER 
-      .slice(0, new Date().getMonth() + 1)
-      .map((m) => ({ label: m, value: financeByMonthMap.get(m) ?? 0 })), 
+      financeByMonth: MONTH_ORDER
+        .slice(0, new Date().getMonth() + 1)
+        .map((m) => ({ label: m, value: financeByMonthMap.get(m) ?? 0 })),
       workStatuses: Array.from(workStatusMap.entries()).map(([label, value]) => ({ label, value })),
       lifestyleHabits,
       travelStatuses: Array.from(travelStatusMap.entries()).map(([label, value]) => ({ label, value })),
-      wishlistPriorities: Array.from(wishlistPriorityMap.entries()).map(([label, value]) => ({ label, value })),
+      wishlistPriorities: Array.from(wishlistPriorityMap.entries())
+        .filter(([label]) => label !== 'Unknown')
+        .map(([label, value]) => ({ label, value })),
     },
     yearlySummary,
   };
