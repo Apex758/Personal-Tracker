@@ -1,19 +1,5 @@
 {
-  "bypassDeploymentProtection": [
-    "/manifest.webmanifest",
-    "/manifest.json",
-    "/sw.js",
-    "/favicon.ico",
-    "/icon-(.*).png"
-  ],
   "headers": [
-    {
-      "source": "/manifest.webmanifest",
-      "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=86400" },
-        { "key": "Access-Control-Allow-Origin", "value": "*" }
-      ]
-    },
     {
       "source": "/manifest.json",
       "headers": [
