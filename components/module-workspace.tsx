@@ -900,7 +900,15 @@ function FinanceStatCards({ rows, accent, goals, onGoalChange, monthLabel }: { r
         const statusLabel = goal > 0 ? lowerIsBetter ? pct > 100 ? `${(pct - 100).toFixed(0)}% over goal` : `${(100 - pct).toFixed(0)}% under goal` : pct > 100 ? `${(pct - 100).toFixed(0)}% over goal 🎉` : `${pct.toFixed(0)}% of goal` : null;
 
         return (
-          <div key={nature} className="stat-card">
+          <GlareHover
+            key={nature}
+            glareColor="#ffffff"
+            glareOpacity={0.18}
+            glareAngle={-30}
+            glareSize={300}
+            transitionDuration={700}
+            className="stat-card"
+          >
             <div className="stat-accent-bar" style={{ background: `linear-gradient(90deg, ${color}, transparent)` }} />
             <div className="stat-label">{label}</div>
             <div className="stat-value" style={{ fontSize: '1.4rem' }}>{formatMoney(actual)}</div>
@@ -927,7 +935,7 @@ function FinanceStatCards({ rows, accent, goals, onGoalChange, monthLabel }: { r
                 {statusLabel && <div style={{ fontSize: '0.68rem', color: barColor, marginTop: 3, fontWeight: 600 }}>{statusLabel}</div>}
               </>
             )}
-          </div>
+          </GlareHover>
         );
       })}
     </div>

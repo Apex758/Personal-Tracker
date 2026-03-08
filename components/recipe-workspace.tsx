@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useRef, useCallback } from 'react';
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import {
   Plus, ChevronDown, ChevronRight, Clock, Users, ChefHat,
   Timer, UtensilsCrossed, Pencil, X, Check, ImagePlus, Link,
@@ -292,20 +292,70 @@ type PantryState = {
   bank: Record<string, string[]>;
 };
 
-function loadPantry(): PantryState {
+const CACHE_KEY = 'recipe_pantry_v1';
+
+function readCache(): PantryState | null {
   try {
-    const saved = localStorage.getItem('recipe_pantry_v1');
-    if (saved) return JSON.parse(saved);
-  } catch {}
-  return { available: {}, bank: { ...DEFAULT_BANK } };
+    const raw = localStorage.getItem(CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
 }
 
-function savePantry(state: PantryState) {
-  try { localStorage.setItem('recipe_pantry_v1', JSON.stringify(state)); } catch {}
+function writeCache(state: PantryState) {
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify(state)); } catch {}
 }
 
 function PantryView() {
-  const [pantry, setPantry] = useState<PantryState>(() => loadPantry());
+  const [pantry, setPantry] = useState<PantryState>({ available: {}, bank: { ...DEFAULT_BANK } });
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // On mount: show cache immediately, then fetch from Supabase
+  useEffect(() => {
+    const cached = readCache();
+    if (cached) setPantry(mergeBankDefaults(cached));
+
+    fetch('/api/pantry', { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((data: { available?: Record<string, string[]>; bank?: Record<string, string[]> }) => {
+        const merged = mergeBankDefaults({
+          available: data.available ?? {},
+          bank: data.bank && Object.keys(data.bank).length > 0 ? data.bank : { ...DEFAULT_BANK },
+        });
+        setPantry(merged);
+        writeCache(merged);
+      })
+      .catch(() => { /* keep cache */ });
+  }, []);
+
+  function mergeBankDefaults(state: PantryState): PantryState {
+    // Ensure default categories always exist
+    const bank = { ...DEFAULT_BANK, ...state.bank };
+    return { ...state, bank };
+  }
+
+  // Debounced save to Supabase, immediate cache write
+  function update(next: PantryState) {
+    setPantry(next);
+    writeCache(next);
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      setSyncing(true);
+      fetch('/api/pantry', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(next),
+      })
+        .then((r) => r.json())
+        .then((d) => {
+          setSyncMsg(d.ok ? { text: 'Saved ✓', ok: true } : { text: d.error || 'Save failed', ok: false });
+          setTimeout(() => setSyncMsg(null), 2000);
+        })
+        .catch(() => setSyncMsg({ text: 'Offline — saved locally', ok: false }))
+        .finally(() => setSyncing(false));
+    }, 800);
+  }
   const [activeCategory, setActiveCategory] = useState(DEFAULT_BANK_CATEGORIES[0]);
   const [newItem, setNewItem] = useState('');
   const [newCategory, setNewCategory] = useState('');
@@ -384,8 +434,10 @@ function PantryView() {
           }}>
             🧺 My Pantry
           </div>
-          <div style={{ fontSize: '0.74rem', color: 'var(--text-3)' }}>
+          <div style={{ fontSize: '0.74rem', color: 'var(--text-3)', display: 'flex', alignItems: 'center', gap: 6 }}>
             {totalAvailable} ingredient{totalAvailable !== 1 ? 's' : ''} on hand
+            {syncing && <span style={{ fontSize: '0.65rem', color: 'var(--accent-recipe)', opacity: 0.8 }}>syncing…</span>}
+            {syncMsg && <span style={{ fontSize: '0.65rem', color: syncMsg.ok ? '#4ade80' : '#f5a623' }}>{syncMsg.text}</span>}
           </div>
         </div>
 
@@ -548,6 +600,8 @@ function PantryView() {
               return (
                 <div
                   key={item}
+                  onClick={() => inPantry ? removeFromAvailable(activeCategory, item) : addToAvailable(activeCategory, item)}
+                  title={inPantry ? 'Click to remove from pantry' : 'Click to add to pantry'}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 5,
                     padding: '5px 10px', borderRadius: 99,
@@ -556,47 +610,17 @@ function PantryView() {
                     fontSize: '0.8rem',
                     color: inPantry ? 'var(--accent-recipe)' : 'var(--text-2)',
                     transition: 'all 0.15s',
+                    cursor: 'pointer',
+                    userSelect: 'none',
                   }}
                 >
-                  <span>{item}</span>
-                  {/* Add/remove from pantry */}
-                  {inPantry ? (
-                    <button
-                      onClick={() => removeFromAvailable(activeCategory, item)}
-                      title="Remove from pantry"
-                      style={{
-                        background: 'rgba(249,115,22,0.2)', border: 'none', cursor: 'pointer',
-                        color: 'var(--accent-recipe)', padding: '1px 5px', fontSize: '0.68rem',
-                        borderRadius: 99, lineHeight: 1.4, fontWeight: 700,
-                      }}
-                    >in pantry ✓</button>
-                  ) : (
-                    <button
-                      onClick={() => addToAvailable(activeCategory, item)}
-                      title="Add to pantry"
-                      style={{
-                        background: 'var(--surface-3)', border: '1px solid var(--border)',
-                        cursor: 'pointer', color: 'var(--text-2)', padding: '1px 7px',
-                        fontSize: '0.75rem', borderRadius: 99, lineHeight: 1.4,
-                        transition: 'all 0.15s',
-                      }}
-                      onMouseEnter={(e) => {
-                        const b = e.currentTarget;
-                        b.style.background = 'rgba(249,115,22,0.15)';
-                        b.style.borderColor = 'var(--accent-recipe)';
-                        b.style.color = 'var(--accent-recipe)';
-                      }}
-                      onMouseLeave={(e) => {
-                        const b = e.currentTarget;
-                        b.style.background = 'var(--surface-3)';
-                        b.style.borderColor = 'var(--border)';
-                        b.style.color = 'var(--text-2)';
-                      }}
-                    >+ add</button>
-                  )}
+                  <span
+                    onClick={() => inPantry ? removeFromAvailable(activeCategory, item) : addToAvailable(activeCategory, item)}
+                    style={{ cursor: 'pointer', userSelect: 'none' }}
+                  >{item}</span>
                   {/* Remove from bank */}
                   <button
-                    onClick={() => removeFromBank(activeCategory, item)}
+                    onClick={(e) => { e.stopPropagation(); removeFromBank(activeCategory, item); }}
                     title="Remove from bank"
                     style={{
                       background: 'none', border: 'none', cursor: 'pointer',
