@@ -4,7 +4,7 @@ import { useState, useMemo, useRef, useCallback } from 'react';
 import {
   Plus, ChevronDown, ChevronRight, Clock, Users, ChefHat,
   Timer, UtensilsCrossed, Pencil, X, Check, ImagePlus, Link,
-  PanelLeftClose, PanelLeftOpen,
+  PanelLeftClose, PanelLeftOpen, FlipHorizontal,
 } from 'lucide-react';
 import type { RecordShape } from '@/lib/types';
 
@@ -268,6 +268,395 @@ function PaginationBar({ current, total, onChange }: {
   );
 }
 
+// ─── Pantry / Ingredient Bank ────────────────────────────────────────────────
+
+const DEFAULT_BANK_CATEGORIES = [
+  'Proteins', 'Carbs', 'Dairy', 'Vegetables', 'Fruits',
+  'Herbs & Spices', 'Condiments', 'Oils & Fats', 'Pantry Staples',
+];
+
+const DEFAULT_BANK: Record<string, string[]> = {
+  'Proteins':       ['Chicken breast', 'Eggs', 'Tuna', 'Salmon', 'Ground beef', 'Shrimp', 'Pancetta', 'Bacon'],
+  'Carbs':          ['Spaghetti', 'Rice', 'Bread', 'Flour', 'Oats', 'Potato', 'Pasta'],
+  'Dairy':          ['Milk', 'Butter', 'Heavy cream', 'Pecorino cheese', 'Parmesan', 'Mozzarella', 'Yogurt'],
+  'Vegetables':     ['Garlic', 'Onion', 'Tomato', 'Spinach', 'Broccoli', 'Zucchini', 'Cherry tomatoes', 'Cucumber'],
+  'Fruits':         ['Lemon', 'Lime', 'Orange', 'Banana', 'Avocado', 'Berries'],
+  'Herbs & Spices': ['Salt', 'Black pepper', 'Cumin', 'Paprika', 'Oregano', 'Basil', 'Thyme', 'Chili flakes'],
+  'Condiments':     ['Olive oil', 'Soy sauce', 'Vinegar', 'Mustard', 'Honey', 'Hot sauce'],
+  'Oils & Fats':    ['Olive oil', 'Butter', 'Coconut oil', 'Vegetable oil'],
+  'Pantry Staples': ['Baking powder', 'Sugar', 'Brown sugar', 'Cornstarch', 'Vanilla extract'],
+};
+
+type PantryState = {
+  available: Record<string, string[]>;
+  bank: Record<string, string[]>;
+};
+
+function loadPantry(): PantryState {
+  try {
+    const saved = localStorage.getItem('recipe_pantry_v1');
+    if (saved) return JSON.parse(saved);
+  } catch {}
+  return { available: {}, bank: { ...DEFAULT_BANK } };
+}
+
+function savePantry(state: PantryState) {
+  try { localStorage.setItem('recipe_pantry_v1', JSON.stringify(state)); } catch {}
+}
+
+function PantryView() {
+  const [pantry, setPantry] = useState<PantryState>(() => loadPantry());
+  const [activeCategory, setActiveCategory] = useState(DEFAULT_BANK_CATEGORIES[0]);
+  const [newItem, setNewItem] = useState('');
+  const [newCategory, setNewCategory] = useState('');
+  const [addingCategory, setAddingCategory] = useState(false);
+
+  const allCategories = useMemo(() => {
+    const bankCats = Object.keys(pantry.bank);
+    const order = [...DEFAULT_BANK_CATEGORIES];
+    bankCats.forEach((c) => { if (!order.includes(c)) order.push(c); });
+    return order.filter((c) => bankCats.includes(c));
+  }, [pantry.bank]);
+
+  const availableCategories = useMemo(
+    () => Object.keys(pantry.available).filter((c) => (pantry.available[c]?.length ?? 0) > 0),
+    [pantry.available],
+  );
+
+  function update(next: PantryState) { setPantry(next); savePantry(next); }
+
+  function addToAvailable(category: string, item: string) {
+    const current = pantry.available[category] ?? [];
+    if (current.includes(item)) return;
+    update({ ...pantry, available: { ...pantry.available, [category]: [...current, item] } });
+  }
+
+  function removeFromAvailable(category: string, item: string) {
+    const next = (pantry.available[category] ?? []).filter((i) => i !== item);
+    update({ ...pantry, available: { ...pantry.available, [category]: next } });
+  }
+
+  function addToBank() {
+    const trimmed = newItem.trim();
+    if (!trimmed || !activeCategory) return;
+    const current = pantry.bank[activeCategory] ?? [];
+    if (current.includes(trimmed)) { setNewItem(''); return; }
+    update({ ...pantry, bank: { ...pantry.bank, [activeCategory]: [...current, trimmed] } });
+    setNewItem('');
+  }
+
+  function removeFromBank(category: string, item: string) {
+    const next = (pantry.bank[category] ?? []).filter((i) => i !== item);
+    update({ ...pantry, bank: { ...pantry.bank, [category]: next } });
+  }
+
+  function addCategory() {
+    const trimmed = newCategory.trim();
+    if (!trimmed || pantry.bank[trimmed] !== undefined) return;
+    update({ ...pantry, bank: { ...pantry.bank, [trimmed]: [] } });
+    setActiveCategory(trimmed);
+    setNewCategory('');
+    setAddingCategory(false);
+  }
+
+  const isInAvailable = (cat: string, item: string) =>
+    (pantry.available[cat] ?? []).includes(item);
+
+  const totalAvailable = Object.values(pantry.available).flat().length;
+
+  return (
+    <div style={{ display: 'flex', height: '100%', minHeight: 0 }}>
+
+      {/* ── LEFT: My Pantry ── */}
+      <div style={{
+        width: 210, flexShrink: 0,
+        borderRight: '1px solid var(--border)',
+        display: 'flex', flexDirection: 'column',
+        background: 'var(--surface-2)',
+      }}>
+        {/* Header */}
+        <div style={{
+          padding: '14px 14px 10px', borderBottom: '1px solid var(--border)', flexShrink: 0,
+        }}>
+          <div style={{
+            fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase',
+            letterSpacing: '0.12em', color: 'var(--accent-recipe)', marginBottom: 2,
+          }}>
+            🧺 My Pantry
+          </div>
+          <div style={{ fontSize: '0.74rem', color: 'var(--text-3)' }}>
+            {totalAvailable} ingredient{totalAvailable !== 1 ? 's' : ''} on hand
+          </div>
+        </div>
+
+        {/* Available list */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '10px' }}>
+          {availableCategories.length === 0 && (
+            <div style={{
+              color: 'var(--text-3)', fontSize: '0.78rem',
+              textAlign: 'center', marginTop: 28, lineHeight: 1.8,
+            }}>
+              Nothing here yet.<br />
+              Hit <strong style={{ color: 'var(--accent-recipe)' }}>+</strong> on any ingredient<br />
+              in the bank →
+            </div>
+          )}
+          {availableCategories.map((cat) => (
+            <div key={cat} style={{ marginBottom: 14 }}>
+              <div style={{
+                fontSize: '0.62rem', fontWeight: 700, textTransform: 'uppercase',
+                letterSpacing: '0.1em', color: 'var(--text-3)', marginBottom: 5,
+              }}>
+                {cat}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                {(pantry.available[cat] ?? []).map((item) => (
+                  <div key={item} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '4px 8px', borderRadius: 6,
+                    background: 'rgba(249,115,22,0.1)',
+                    border: '1px solid rgba(249,115,22,0.2)',
+                    fontSize: '0.79rem', color: 'var(--text)',
+                  }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <span style={{ color: 'var(--accent-recipe)', fontSize: '0.7rem' }}>✓</span>
+                      {item}
+                    </span>
+                    <button
+                      onClick={() => removeFromAvailable(cat, item)}
+                      style={{
+                        background: 'none', border: 'none', color: 'var(--text-3)',
+                        cursor: 'pointer', padding: '0 2px', fontSize: '0.7rem', lineHeight: 1,
+                        flexShrink: 0,
+                      }}
+                    >✕</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Clear all */}
+        {totalAvailable > 0 && (
+          <div style={{ padding: '8px 10px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
+            <button
+              onClick={() => update({ ...pantry, available: {} })}
+              style={{
+                width: '100%', background: 'none', border: '1px solid var(--border)',
+                color: 'var(--text-3)', borderRadius: 6, padding: '5px',
+                fontSize: '0.72rem', cursor: 'pointer', transition: 'all 0.15s',
+              }}
+              onMouseEnter={(e) => { (e.target as HTMLButtonElement).style.borderColor = '#ef4444'; (e.target as HTMLButtonElement).style.color = '#ef4444'; }}
+              onMouseLeave={(e) => { (e.target as HTMLButtonElement).style.borderColor = 'var(--border)'; (e.target as HTMLButtonElement).style.color = 'var(--text-3)'; }}
+            >
+              Clear pantry
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ── RIGHT: Ingredient Bank ── */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
+
+        {/* Category tab bar */}
+        <div style={{
+          flexShrink: 0, padding: '10px 16px 0',
+          borderBottom: '1px solid var(--border)',
+          display: 'flex', alignItems: 'flex-end', gap: 0,
+          overflowX: 'auto',
+        }}>
+          <div style={{
+            fontSize: '0.62rem', fontWeight: 700, textTransform: 'uppercase',
+            letterSpacing: '0.12em', color: 'var(--text-3)', whiteSpace: 'nowrap',
+            alignSelf: 'center', marginRight: 10, paddingBottom: 4,
+          }}>
+            🏦 Ingredient Bank
+          </div>
+          {allCategories.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setActiveCategory(cat)}
+              style={{
+                padding: '6px 13px', whiteSpace: 'nowrap',
+                borderRadius: '7px 7px 0 0',
+                border: '1px solid var(--border)',
+                borderBottom: activeCategory === cat ? '1px solid var(--surface)' : '1px solid var(--border)',
+                background: activeCategory === cat ? 'var(--surface)' : 'var(--surface-2)',
+                color: activeCategory === cat ? 'var(--accent-recipe)' : 'var(--text-3)',
+                fontSize: '0.74rem', fontWeight: activeCategory === cat ? 700 : 400,
+                cursor: 'pointer', marginBottom: -1, marginRight: 2,
+                transition: 'all 0.15s', flexShrink: 0,
+              }}
+            >
+              {cat}
+              {(() => {
+                const count = (pantry.available[cat] ?? []).length;
+                return count > 0 ? (
+                  <span style={{
+                    marginLeft: 5, background: 'var(--accent-recipe)', color: '#fff',
+                    borderRadius: 99, padding: '1px 5px', fontSize: '0.62rem', fontWeight: 700,
+                  }}>{count}</span>
+                ) : null;
+              })()}
+            </button>
+          ))}
+          {/* Add category button */}
+          {addingCategory ? (
+            <div style={{ display: 'flex', gap: 5, alignItems: 'center', paddingBottom: 4, marginLeft: 4 }}>
+              <input
+                autoFocus
+                value={newCategory}
+                onChange={(e) => setNewCategory(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') addCategory(); if (e.key === 'Escape') setAddingCategory(false); }}
+                placeholder="Category name"
+                style={{
+                  padding: '4px 8px', fontSize: '0.74rem', borderRadius: 6,
+                  border: '1px solid var(--accent-recipe)', background: 'var(--surface-2)',
+                  color: 'var(--text)', outline: 'none', width: 130,
+                }}
+              />
+              <button onClick={addCategory} style={{
+                background: 'var(--accent-recipe)', border: 'none', color: '#fff',
+                borderRadius: 6, padding: '4px 10px', fontSize: '0.72rem', cursor: 'pointer',
+              }}>Add</button>
+              <button onClick={() => setAddingCategory(false)} style={{
+                background: 'none', border: '1px solid var(--border)', color: 'var(--text-3)',
+                borderRadius: 6, padding: '4px 8px', fontSize: '0.72rem', cursor: 'pointer',
+              }}>✕</button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setAddingCategory(true)}
+              style={{
+                padding: '6px 10px', borderRadius: '7px 7px 0 0', flexShrink: 0,
+                border: '1px dashed var(--border)', background: 'transparent',
+                color: 'var(--text-3)', fontSize: '0.72rem', cursor: 'pointer', marginLeft: 4,
+              }}
+              title="Add new category"
+            >
+              + Category
+            </button>
+          )}
+        </div>
+
+        {/* Bank items */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 8px' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+            {(pantry.bank[activeCategory] ?? []).map((item) => {
+              const inPantry = isInAvailable(activeCategory, item);
+              return (
+                <div
+                  key={item}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 5,
+                    padding: '5px 10px', borderRadius: 99,
+                    background: inPantry ? 'rgba(249,115,22,0.13)' : 'var(--surface-2)',
+                    border: `1px solid ${inPantry ? 'rgba(249,115,22,0.4)' : 'var(--border)'}`,
+                    fontSize: '0.8rem',
+                    color: inPantry ? 'var(--accent-recipe)' : 'var(--text-2)',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  <span>{item}</span>
+                  {/* Add/remove from pantry */}
+                  {inPantry ? (
+                    <button
+                      onClick={() => removeFromAvailable(activeCategory, item)}
+                      title="Remove from pantry"
+                      style={{
+                        background: 'rgba(249,115,22,0.2)', border: 'none', cursor: 'pointer',
+                        color: 'var(--accent-recipe)', padding: '1px 5px', fontSize: '0.68rem',
+                        borderRadius: 99, lineHeight: 1.4, fontWeight: 700,
+                      }}
+                    >in pantry ✓</button>
+                  ) : (
+                    <button
+                      onClick={() => addToAvailable(activeCategory, item)}
+                      title="Add to pantry"
+                      style={{
+                        background: 'var(--surface-3)', border: '1px solid var(--border)',
+                        cursor: 'pointer', color: 'var(--text-2)', padding: '1px 7px',
+                        fontSize: '0.75rem', borderRadius: 99, lineHeight: 1.4,
+                        transition: 'all 0.15s',
+                      }}
+                      onMouseEnter={(e) => {
+                        const b = e.currentTarget;
+                        b.style.background = 'rgba(249,115,22,0.15)';
+                        b.style.borderColor = 'var(--accent-recipe)';
+                        b.style.color = 'var(--accent-recipe)';
+                      }}
+                      onMouseLeave={(e) => {
+                        const b = e.currentTarget;
+                        b.style.background = 'var(--surface-3)';
+                        b.style.borderColor = 'var(--border)';
+                        b.style.color = 'var(--text-2)';
+                      }}
+                    >+ add</button>
+                  )}
+                  {/* Remove from bank */}
+                  <button
+                    onClick={() => removeFromBank(activeCategory, item)}
+                    title="Remove from bank"
+                    style={{
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      color: 'var(--text-3)', padding: '0 2px', fontSize: '0.62rem',
+                      opacity: 0.5, lineHeight: 1,
+                    }}
+                  >✕</button>
+                </div>
+              );
+            })}
+            {(pantry.bank[activeCategory] ?? []).length === 0 && (
+              <div style={{ color: 'var(--text-3)', fontSize: '0.8rem', fontStyle: 'italic' }}>
+                No items in <strong>{activeCategory}</strong> yet — add one below ↓
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Add ingredient to bank */}
+        <div style={{
+          flexShrink: 0, padding: '10px 16px',
+          borderTop: '1px solid var(--border)',
+          display: 'flex', gap: 8, alignItems: 'center',
+          background: 'var(--surface)',
+        }}>
+          <div style={{ fontSize: '0.72rem', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>
+            Add to <span style={{ color: 'var(--accent-recipe)', fontWeight: 700 }}>{activeCategory}</span>:
+          </div>
+          <input
+            value={newItem}
+            onChange={(e) => setNewItem(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') addToBank(); }}
+            placeholder="e.g. Parmesan, Garlic cloves…"
+            style={{
+              flex: 1, padding: '6px 10px', fontSize: '0.82rem',
+              background: 'var(--surface-2)', border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-xs)', color: 'var(--text)', outline: 'none',
+            }}
+            onFocus={(e) => (e.target.style.borderColor = 'var(--accent-recipe)')}
+            onBlur={(e) => (e.target.style.borderColor = 'var(--border)')}
+          />
+          <button
+            onClick={addToBank}
+            disabled={!newItem.trim()}
+            style={{
+              background: newItem.trim() ? 'var(--accent-recipe)' : 'var(--surface-3)',
+              border: 'none', color: newItem.trim() ? '#fff' : 'var(--text-3)',
+              borderRadius: 'var(--radius-xs)', padding: '6px 16px',
+              fontSize: '0.82rem', fontWeight: 600, cursor: newItem.trim() ? 'pointer' : 'default',
+              transition: 'all 0.15s',
+            }}
+          >
+            Add
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function RecipeWorkspace({ initialRows }: { initialRows: RecordShape[] }) {
@@ -279,6 +668,7 @@ export function RecipeWorkspace({ initialRows }: { initialRows: RecordShape[] })
   const [draft, setDraft] = useState<typeof BLANK_RECIPE>(BLANK_RECIPE);
   const [currentPage, setCurrentPage] = useState(1);
   const [tocOpen, setTocOpen] = useState(true);
+  const [isFlipped, setIsFlipped] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
     new Set([recipes[0]?.category || 'Breakfast'])
   );
@@ -320,14 +710,14 @@ export function RecipeWorkspace({ initialRows }: { initialRows: RecordShape[] })
   }
 
   function handleRecipeClick(id: string) {
-    setSelectedId(id); setMode('view'); setCurrentPage(1);
+    setSelectedId(id); setMode('view'); setCurrentPage(1); setIsFlipped(false);
   }
 
-  function handleAddNew() { setDraft({ ...BLANK_RECIPE }); setMode('new'); }
+  function handleAddNew() { setDraft({ ...BLANK_RECIPE }); setMode('new'); setIsFlipped(false); }
 
   function handleEdit() {
     if (!selectedRecipe) return;
-    setDraft({ ...selectedRecipe }); setMode('edit');
+    setDraft({ ...selectedRecipe }); setMode('edit'); setIsFlipped(false);
   }
 
   function handleCancel() {
@@ -372,10 +762,6 @@ export function RecipeWorkspace({ initialRows }: { initialRows: RecordShape[] })
         </div>
       </div>
 
-      {/*
-        Card fills the remaining viewport height.
-        overflow: hidden on the card — nothing bleeds out.
-      */}
       <div className="card" style={{
         padding: 0,
         overflow: 'hidden',
@@ -384,7 +770,6 @@ export function RecipeWorkspace({ initialRows }: { initialRows: RecordShape[] })
         display: 'flex',
         flexDirection: 'column',
       }}>
-        {/* Inner row — flex: 1, minHeight: 0 so children can't overflow */}
         <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
 
           {/* ── TOC (collapsible) ── */}
@@ -396,7 +781,6 @@ export function RecipeWorkspace({ initialRows }: { initialRows: RecordShape[] })
             overflow: 'hidden',
             transition: 'width 0.22s ease',
           }}>
-            {/* inner wrapper keeps padding so content doesn't jump during animation */}
             <div style={{
               width: 220, flexShrink: 0, height: '100%',
               display: 'flex', flexDirection: 'column',
@@ -473,11 +857,11 @@ export function RecipeWorkspace({ initialRows }: { initialRows: RecordShape[] })
             </div>
           </div>
 
-          {/* ── Right panel: flex column, pagination pinned at bottom ── */}
+          {/* ── Right panel ── */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
 
             {isEditing ? (
-              /* ══ EDIT / NEW — only this panel scrolls ══ */
+              /* ══ EDIT / NEW ══ */
               <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '28px 36px' }}>
                 <input
                   value={draft.name}
@@ -554,143 +938,206 @@ export function RecipeWorkspace({ initialRows }: { initialRows: RecordShape[] })
               </div>
 
             ) : selectedRecipe ? (
-              /* ══ VIEW — content area has overflow:hidden, pagination stays pinned ══ */
+              /* ══ VIEW (front) or PANTRY (back) ══ */
               <>
+                {/* Animated container */}
                 <div style={{
-                  flex: 1,
-                  minHeight: 0,
-                  overflow: 'hidden',   // ← NO scroll, content must fit on one page
-                  padding: '28px 36px',
+                  flex: 1, minHeight: 0,
+                  position: 'relative',
+                  overflow: 'hidden',
                 }}>
-                  {/* Title + toggle + edit */}
-                  <div style={{ position: 'relative', marginBottom: 20 }}>
-                    <button
-                      onClick={() => setTocOpen((v) => !v)}
-                      title={tocOpen ? 'Hide contents' : 'Show contents'}
-                      style={{
-                        position: 'absolute', top: 0, left: 0,
-                        background: 'none', border: '1px solid var(--border)',
-                        borderRadius: 'var(--radius-xs)', padding: '5px 8px',
-                        color: 'var(--text-3)', cursor: 'pointer', display: 'flex', alignItems: 'center',
-                      }}
-                    >
-                      {tocOpen ? <PanelLeftClose size={14} /> : <PanelLeftOpen size={14} />}
-                    </button>
-                    <h1 style={{
-                      textAlign: 'center', letterSpacing: '2px', textTransform: 'uppercase',
-                      borderBottom: '1px solid var(--border)', paddingBottom: 16,
-                      fontFamily: 'Georgia, serif', fontSize: '1.7rem', fontWeight: 700, color: 'var(--text)',
-                    }}>
-                      {selectedRecipe.name}
-                    </h1>
-                    <button onClick={handleEdit} className="btn btn-secondary"
-                      style={{ position: 'absolute', top: 0, right: 0, padding: '5px 12px', fontSize: '0.78rem' }}>
-                      <Pencil size={12} /> Edit
-                    </button>
+                  {/* ── FRONT: recipe detail ── */}
+                  <div style={{
+                    position: 'absolute', inset: 0,
+                    display: 'flex', flexDirection: 'column',
+                    opacity: isFlipped ? 0 : 1,
+                    transform: isFlipped ? 'translateX(-24px)' : 'translateX(0)',
+                    transition: 'opacity 0.22s ease, transform 0.22s ease',
+                    pointerEvents: isFlipped ? 'none' : 'auto',
+                    overflow: 'hidden',
+                  }}>
+                    <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', padding: '28px 36px' }}>
+                      {/* Title row */}
+                      <div style={{ position: 'relative', marginBottom: 20 }}>
+                        <button
+                          onClick={() => setTocOpen((v) => !v)}
+                          title={tocOpen ? 'Hide contents' : 'Show contents'}
+                          style={{
+                            position: 'absolute', top: 0, left: 0,
+                            background: 'none', border: '1px solid var(--border)',
+                            borderRadius: 'var(--radius-xs)', padding: '5px 8px',
+                            color: 'var(--text-3)', cursor: 'pointer', display: 'flex', alignItems: 'center',
+                          }}
+                        >
+                          {tocOpen ? <PanelLeftClose size={14} /> : <PanelLeftOpen size={14} />}
+                        </button>
+                        <h1 style={{
+                          textAlign: 'center', letterSpacing: '2px', textTransform: 'uppercase',
+                          borderBottom: '1px solid var(--border)', paddingBottom: 16,
+                          fontFamily: 'Georgia, serif', fontSize: '1.7rem', fontWeight: 700, color: 'var(--text)',
+                        }}>
+                          {selectedRecipe.name}
+                        </h1>
+                        {/* Right side buttons */}
+                        <div style={{ position: 'absolute', top: 0, right: 0, display: 'flex', gap: 6 }}>
+                          <button
+                            onClick={() => setIsFlipped(true)}
+                            title="Flip to Pantry"
+                            style={{
+                              background: 'rgba(249,115,22,0.1)', border: '1px solid rgba(249,115,22,0.3)',
+                              borderRadius: 'var(--radius-xs)', padding: '5px 10px',
+                              color: 'var(--accent-recipe)', cursor: 'pointer',
+                              display: 'flex', alignItems: 'center', gap: 5,
+                              fontSize: '0.75rem', fontWeight: 600,
+                            }}
+                          >
+                            <FlipHorizontal size={13} /> Pantry
+                          </button>
+                          <button onClick={handleEdit} className="btn btn-secondary"
+                            style={{ padding: '5px 12px', fontSize: '0.78rem' }}>
+                            <Pencil size={12} /> Edit
+                          </button>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: 32, height: 'calc(100% - 80px)' }}>
+                        {/* Ingredients */}
+                        <div style={{ width: 180, flexShrink: 0, overflow: 'hidden' }}>
+                          <h3 style={{
+                            fontFamily: 'Georgia, serif', fontSize: '1rem', marginBottom: 12,
+                            color: 'var(--accent-recipe)', borderBottom: `2px solid var(--accent-recipe)`, paddingBottom: 5,
+                          }}>
+                            Ingredients
+                          </h3>
+                          <div style={{ whiteSpace: 'pre-wrap', color: 'var(--text-2)', lineHeight: 1.75, fontSize: '0.855rem' }}>
+                            {selectedRecipe.ingredients}
+                          </div>
+                          {selectedRecipe.notes ? (
+                            <>
+                              <hr style={{ border: 'none', borderTop: '2px dotted var(--border)', margin: '16px 0' }} />
+                              <div style={{ fontSize: '0.8rem', color: 'var(--text-2)' }}>
+                                <strong style={{ color: 'var(--text)' }}>Notes: </strong>{selectedRecipe.notes}
+                              </div>
+                            </>
+                          ) : null}
+                        </div>
+
+                        {/* Right column */}
+                        <div style={{ flex: 1, minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                          {/* Meta row */}
+                          <div style={{
+                            flexShrink: 0,
+                            display: 'flex', justifyContent: 'space-around',
+                            borderBottom: '1px dotted var(--border)',
+                            paddingBottom: 12, marginBottom: 14, textAlign: 'center',
+                          }}>
+                            {selectedRecipe.prep_time && (
+                              <div style={{ borderRight: '1px dotted var(--border)', paddingRight: 16, flex: 1 }}>
+                                <Timer size={16} style={{ margin: '0 auto 4px', display: 'block', color: 'var(--accent-recipe)' }} />
+                                <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text)' }}>Prep</div>
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-2)' }}>{selectedRecipe.prep_time}</div>
+                              </div>
+                            )}
+                            {selectedRecipe.cook_time && (
+                              <div style={{ borderRight: '1px dotted var(--border)', paddingRight: 16, flex: 1 }}>
+                                <Clock size={16} style={{ margin: '0 auto 4px', display: 'block', color: 'var(--accent-recipe)' }} />
+                                <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text)' }}>Cook</div>
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-2)' }}>{selectedRecipe.cook_time}</div>
+                              </div>
+                            )}
+                            {selectedRecipe.servings && (
+                              <div style={{ flex: 1 }}>
+                                <Users size={16} style={{ margin: '0 auto 4px', display: 'block', color: 'var(--accent-recipe)' }} />
+                                <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text)' }}>Serves</div>
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-2)' }}>{selectedRecipe.servings}</div>
+                              </div>
+                            )}
+                          </div>
+
+                          {showImage && (
+                            <img
+                              src={selectedRecipe.image_url} alt={selectedRecipe.name}
+                              style={{
+                                flexShrink: 0,
+                                width: '100%', height: 180, objectFit: 'cover',
+                                objectPosition: 'center', marginBottom: 14,
+                                borderRadius: 'var(--radius-sm)',
+                              }}
+                            />
+                          )}
+
+                          <h3 style={{
+                            flexShrink: 0,
+                            fontFamily: 'Georgia, serif', fontSize: '1rem', marginBottom: 10,
+                            color: 'var(--accent-recipe)', borderBottom: `2px solid var(--accent-recipe)`, paddingBottom: 5,
+                            display: 'flex', alignItems: 'baseline', gap: 8,
+                          }}>
+                            Preparation
+                            {totalPages > 1 && (
+                              <span style={{ fontSize: '0.7rem', fontWeight: 400, fontFamily: 'var(--font-body)', color: 'var(--text-3)' }}>
+                                page {currentPage} of {totalPages}
+                              </span>
+                            )}
+                          </h3>
+
+                          <div style={{
+                            flex: 1, minHeight: 0, overflowY: 'auto',
+                            whiteSpace: 'pre-wrap', color: 'var(--text-2)',
+                            lineHeight: 1.8, fontSize: '0.875rem',
+                          }}>
+                            {pages[currentPage - 1]}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <PaginationBar current={currentPage} total={totalPages} onChange={setCurrentPage} />
                   </div>
 
-                  <div style={{ display: 'flex', gap: 32, height: 'calc(100% - 80px)' }}>
-
-                    {/* Ingredients — same every page, no scroll */}
-                    <div style={{ width: 180, flexShrink: 0, overflow: 'hidden' }}>
-                      <h3 style={{
-                        fontFamily: 'Georgia, serif', fontSize: '1rem', marginBottom: 12,
-                        color: 'var(--accent-recipe)', borderBottom: `2px solid var(--accent-recipe)`, paddingBottom: 5,
+                  {/* ── BACK: pantry view ── */}
+                  <div style={{
+                    position: 'absolute', inset: 0,
+                    display: 'flex', flexDirection: 'column',
+                    opacity: isFlipped ? 1 : 0,
+                    transform: isFlipped ? 'translateX(0)' : 'translateX(24px)',
+                    transition: 'opacity 0.22s ease, transform 0.22s ease',
+                    pointerEvents: isFlipped ? 'auto' : 'none',
+                  }}>
+                    {/* Back header */}
+                    <div style={{
+                      flexShrink: 0,
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '10px 16px', borderBottom: '1px solid var(--border)',
+                      background: 'var(--surface)',
+                    }}>
+                      <button
+                        onClick={() => setIsFlipped(false)}
+                        style={{
+                          background: 'var(--surface-2)', border: '1px solid var(--border)',
+                          borderRadius: 'var(--radius-xs)', padding: '5px 12px',
+                          color: 'var(--text-2)', cursor: 'pointer', fontSize: '0.78rem',
+                          display: 'flex', alignItems: 'center', gap: 5,
+                        }}
+                      >
+                        <FlipHorizontal size={13} /> Back to recipe
+                      </button>
+                      <div style={{ height: 20, width: 1, background: 'var(--border)' }} />
+                      <span style={{
+                        fontFamily: 'var(--font-display)', fontWeight: 700,
+                        fontSize: '0.88rem', color: 'var(--accent-recipe)',
                       }}>
-                        Ingredients
-                      </h3>
-                      <div style={{ whiteSpace: 'pre-wrap', color: 'var(--text-2)', lineHeight: 1.75, fontSize: '0.855rem' }}>
-                        {selectedRecipe.ingredients}
-                      </div>
-                      {selectedRecipe.notes ? (
-                        <>
-                          <hr style={{ border: 'none', borderTop: '2px dotted var(--border)', margin: '16px 0' }} />
-                          <div style={{ fontSize: '0.8rem', color: 'var(--text-2)' }}>
-                            <strong style={{ color: 'var(--text)' }}>Notes: </strong>{selectedRecipe.notes}
-                          </div>
-                        </>
-                      ) : null}
+                        Pantry Manager
+                      </span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-3)', marginLeft: 2 }}>
+                        — track what you have, build your ingredient bank
+                      </span>
                     </div>
 
-                    {/* Right column */}
-                    <div style={{ flex: 1, minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-
-                      {/* Meta row */}
-                      <div style={{
-                        flexShrink: 0,
-                        display: 'flex', justifyContent: 'space-around',
-                        borderBottom: '1px dotted var(--border)',
-                        paddingBottom: 12, marginBottom: 14, textAlign: 'center',
-                      }}>
-                        {selectedRecipe.prep_time && (
-                          <div style={{ borderRight: '1px dotted var(--border)', paddingRight: 16, flex: 1 }}>
-                            <Timer size={16} style={{ margin: '0 auto 4px', display: 'block', color: 'var(--accent-recipe)' }} />
-                            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text)' }}>Prep</div>
-                            <div style={{ fontSize: '0.72rem', color: 'var(--text-2)' }}>{selectedRecipe.prep_time}</div>
-                          </div>
-                        )}
-                        {selectedRecipe.cook_time && (
-                          <div style={{ borderRight: '1px dotted var(--border)', paddingRight: 16, flex: 1 }}>
-                            <Clock size={16} style={{ margin: '0 auto 4px', display: 'block', color: 'var(--accent-recipe)' }} />
-                            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text)' }}>Cook</div>
-                            <div style={{ fontSize: '0.72rem', color: 'var(--text-2)' }}>{selectedRecipe.cook_time}</div>
-                          </div>
-                        )}
-                        {selectedRecipe.servings && (
-                          <div style={{ flex: 1 }}>
-                            <Users size={16} style={{ margin: '0 auto 4px', display: 'block', color: 'var(--accent-recipe)' }} />
-                            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text)' }}>Serves</div>
-                            <div style={{ fontSize: '0.72rem', color: 'var(--text-2)' }}>{selectedRecipe.servings}</div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Image — page 1 only */}
-                      {showImage && (
-                        <img
-                          src={selectedRecipe.image_url} alt={selectedRecipe.name}
-                          style={{
-                            flexShrink: 0,
-                            width: '100%', height: 180, objectFit: 'cover',
-                            objectPosition: 'center', marginBottom: 14,
-                            borderRadius: 'var(--radius-sm)',
-                          }}
-                        />
-                      )}
-
-                      {/* Preparation heading */}
-                      <h3 style={{
-                        flexShrink: 0,
-                        fontFamily: 'Georgia, serif', fontSize: '1rem', marginBottom: 10,
-                        color: 'var(--accent-recipe)', borderBottom: `2px solid var(--accent-recipe)`, paddingBottom: 5,
-                        display: 'flex', alignItems: 'baseline', gap: 8,
-                      }}>
-                        Preparation
-                        {totalPages > 1 && (
-                          <span style={{ fontSize: '0.7rem', fontWeight: 400, fontFamily: 'var(--font-body)', color: 'var(--text-3)' }}>
-                            page {currentPage} of {totalPages}
-                          </span>
-                        )}
-                      </h3>
-
-                      {/* Steps — only this div scrolls */}
-                      <div style={{
-                        flex: 1,
-                        minHeight: 0,
-                        overflowY: 'auto',
-                        whiteSpace: 'pre-wrap',
-                        color: 'var(--text-2)',
-                        lineHeight: 1.8,
-                        fontSize: '0.875rem',
-                      }}>
-                        {pages[currentPage - 1]}
-                      </div>
+                    {/* Pantry content */}
+                    <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+                      <PantryView />
                     </div>
                   </div>
                 </div>
-
-                {/* Pagination — always visible, never squished */}
-                <PaginationBar current={currentPage} total={totalPages} onChange={setCurrentPage} />
               </>
 
             ) : (
