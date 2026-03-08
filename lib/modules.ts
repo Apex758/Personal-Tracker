@@ -35,6 +35,7 @@ export const modules: ModuleConfig[] = [
     primaryField: 'item',
     accent: '#4ade80',
     columns: [
+      { key: 'date', label: 'Date', type: 'date' },
       { key: 'category', label: 'Category', type: 'select', options: ['Protein', 'Carbs', 'Fats', 'Vegetables & Fruit', 'Flavor', 'Toiletries', 'Extra'] },
       { key: 'item', label: 'Item', type: 'text' },
       { key: 'goal_amount', label: 'Goal Amount', type: 'number' },

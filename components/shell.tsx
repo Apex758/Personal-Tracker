@@ -24,6 +24,18 @@ const MODULE_ICONS: Record<string, LucideIcon> = {
   gym:       Dumbbell,
 };
 
+const MODULE_ACCENTS: Record<string, string> = {
+  finance:   '#00d4aa',
+  grocery:   '#4ade80',
+  lifestyle: '#f06292',
+  skills:    '#7c6ef7',
+  work:      '#f5a623',
+  travel:    '#38bdf8',
+  wishlist:  '#c084fc',
+  recipe:    '#f97316',
+  gym:       '#f97316',
+};
+
 type Profile = { name: string; bio: string; image_url: string };
 
 // Shared in-memory cache so all instances update instantly
@@ -167,6 +179,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
                 active={pathname === `/module/${module.slug}`}
                 icon={Icon ? <Icon size={20} strokeWidth={1.8} /> : null}
                 label={module.label}
+                accent={MODULE_ACCENTS[module.slug]}
               />
             );
           })}
@@ -221,9 +234,23 @@ export function Shell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function NavItem({ href, active, icon, label }: { href: string; active: boolean; icon: React.ReactNode; label: string }) {
+function NavItem({ href, active, icon, label, accent }: { href: string; active: boolean; icon: React.ReactNode; label: string; accent?: string }) {
+  const color = accent ?? 'var(--teal)';
   return (
-    <Link href={href} className={`nav-link${active ? ' active' : ''}`}>
+    <Link
+      href={href}
+      className={`nav-link${active ? ' active' : ''}`}
+      style={active ? {
+        background: `${color}18`,
+        color: color,
+      } : undefined}
+    >
+      {active && (
+        <span style={{
+          position: 'absolute', left: 0, top: '20%', height: '60%',
+          width: 3, background: color, borderRadius: '0 3px 3px 0',
+        }} />
+      )}
       <span className="nav-icon">{icon}</span>
       <span className="nav-text">{label}</span>
     </Link>

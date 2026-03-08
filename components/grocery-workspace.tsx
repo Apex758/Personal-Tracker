@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState, useEffect, useRef } from 'react';
+import { useMonth } from '@/lib/month-context';
 import { ChevronRight, ChevronLeft, Plus, X } from 'lucide-react';
 import type { RecordShape } from '@/lib/types';
 
@@ -30,6 +31,19 @@ export function GroceryWorkspace({ initialRows }: { initialRows: RecordShape[] }
   const [syncStatus, setSyncStatus] = useState<'idle'|'syncing'|'synced'|'error'>('idle');
   const [form, setForm] = useState({ category: CATEGORY_ORDER[0], item: '', goal_amount: '', actual_amount: '', notes: '' });
 
+  const { selectedMonth, selectedYear, setSelectedMonth, setSelectedYear, MONTHS, YEAR_OPTIONS } = useMonth();
+
+  const displayRows = useMemo(() => {
+    return rows.filter((r) => {
+      const raw = String(r.date ?? '');
+      if (!raw || raw === 'null') return true;
+      const d = new Date(raw);
+      if (isNaN(d.getTime())) return true;
+      return d.getFullYear() === selectedYear &&
+        d.toLocaleString('default', { month: 'long' }) === selectedMonth;
+    });
+  }, [rows, selectedMonth, selectedYear]);
+
   // Panel collapse state (persisted)
   const [panelCollapsed, setPanelCollapsed] = useState(false);
 
@@ -49,7 +63,7 @@ export function GroceryWorkspace({ initialRows }: { initialRows: RecordShape[] }
   const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isFirstRender = useRef(true);
 
-  const grandActual = useMemo(() => rows.reduce((s, r) => s + num(r.actual_amount), 0), [rows]);
+  const grandActual = useMemo(() => displayRows.reduce((s, r) => s + num(r.actual_amount), 0), [displayRows]);
 
   useEffect(() => {
     if (isFirstRender.current) { isFirstRender.current = false; return; }
@@ -88,7 +102,7 @@ export function GroceryWorkspace({ initialRows }: { initialRows: RecordShape[] }
   async function saveRow() {
     const res = await fetch('/api/records/grocery', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ category: form.category, item: form.item, goal_amount: Number(form.goal_amount)||0, actual_amount: Number(form.actual_amount)||0, notes: form.notes }),
+      body: JSON.stringify({ date: new Date().toISOString().slice(0,10), category: form.category, item: form.item, goal_amount: Number(form.goal_amount)||0, actual_amount: Number(form.actual_amount)||0, notes: form.notes }),
     });
     const data = await res.json();
     if (!res.ok) { showMsg(data.error||'Save failed.', false); return; }
@@ -125,11 +139,11 @@ export function GroceryWorkspace({ initialRows }: { initialRows: RecordShape[] }
   const grouped = useMemo(() => {
     const map = new Map<string, GroceryRow[]>();
     CATEGORY_ORDER.forEach((cat) => map.set(cat, []));
-    rows.forEach((r) => { const cat = r.category||'Extra'; if (!map.has(cat)) map.set(cat,[]); map.get(cat)!.push(r); });
+    displayRows.forEach((r) => { const cat = r.category||'Extra'; if (!map.has(cat)) map.set(cat,[]); map.get(cat)!.push(r); });
     return map;
-  }, [rows]);
+  }, [displayRows]);
 
-  const grandGoal = useMemo(() => rows.reduce((s,r) => s+num(r.goal_amount),0), [rows]);
+  const grandGoal = useMemo(() => displayRows.reduce((s,r) => s+num(r.goal_amount),0), [displayRows]);
   const grandVariance = grandGoal - grandActual;
   const budgetPct = grandGoal > 0 ? Math.min((grandActual/grandGoal)*100,100) : 0;
 
@@ -145,6 +159,20 @@ export function GroceryWorkspace({ initialRows }: { initialRows: RecordShape[] }
           <p className="muted small" style={{ maxWidth:440, marginTop:4 }}>Actual totals sync to Finance automatically when you make changes.</p>
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          <select
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            style={{ padding:'6px 12px', borderRadius:8, border:'1px solid var(--border)', background:'var(--surface-2)', color:'var(--text)', fontSize:'0.85rem', cursor:'pointer' }}
+          >
+            {MONTHS.map((m) => <option key={m} value={m}>{m}</option>)}
+          </select>
+          <select
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(Number(e.target.value))}
+            style={{ padding:'6px 12px', borderRadius:8, border:'1px solid var(--border)', background:'var(--surface-2)', color:'var(--text)', fontSize:'0.85rem', cursor:'pointer' }}
+          >
+            {YEAR_OPTIONS.map((y) => <option key={y} value={y}>{y}</option>)}
+          </select>
           {syncBanner && (
             <div style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 14px', borderRadius:99, background:`${syncBanner.color}18`, border:`1px solid ${syncBanner.color}40` }}>
               {syncStatus==='syncing' && <span style={{ width:8,height:8,borderRadius:'50%',background:syncBanner.color,display:'inline-block',animation:'pulse 1s infinite' }} />}
